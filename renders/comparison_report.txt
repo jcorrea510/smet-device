@@ -1,4 +1,4 @@
-1. ORIGINAL DESIGN (WINCH_RELEASE=False) vs the original STL
+1. ORIGINAL DESIGN (WINCH_RELEASE=False, VERTICAL_WEDGE=False) vs the original STL
 Original bodies: 55   Rebuilt parts: 55
 
 part                   max bbox err     orig vol      new vol  vol err
@@ -13,7 +13,7 @@ cradle_pin                    0.000         94.5         99.0    4.72%
 dowel_1                       0.002      19559.5      20071.4    2.62%
 dowel_2                       0.002      19379.5      19886.7    2.62%
 dowel_3                       0.002      19199.4      19701.9    2.62%
-exit_ramp                     0.000      21338.1      21338.1    0.00%
+entry_ramp                    0.000      21338.1      21338.1    0.00%
 feed_ramp                     0.000      11638.7      11638.6   -0.00%
 fork_lever                    0.000      26391.9      26402.1    0.04%
 fork_seesaw                   0.000      30073.5      30083.7    0.03%
@@ -25,8 +25,8 @@ marble_1                      0.005       2076.8       2094.8    0.87%
 marble_2                      0.005       2076.8       2094.8    0.87%
 paddle_wheel                  0.000       9950.5       9974.1    0.24%
 post_cradle                   0.000      13014.0      13014.0   -0.00%
-post_exit_ramp_1              0.000      17149.8      17149.8   -0.00%
-post_exit_ramp_2              0.000      16722.2      16722.1   -0.00%
+post_entry_ramp_1             0.000      17149.8      17149.8   -0.00%
+post_entry_ramp_2             0.000      16722.2      16722.1   -0.00%
 post_feed_ramp                0.000      16664.5      16664.5   -0.00%
 post_left                     0.000     267804.1     267804.3    0.00%
 post_lever_box                0.000      18187.1      18187.1    0.00%
@@ -65,10 +65,10 @@ bbox min   [-7.222  0.     0.   ]   [-7.217  0.     0.   ]
 bbox max   [304.8   304.8   757.001] [304.8   304.8   757.001]
 volume     3,404,209 mm^3          3,406,020 mm^3  (+0.053%)
 
-2. WHEEL & AXLE REDESIGN (WINCH_RELEASE=True)
-added:   wheel_axle, string_drum, axle_bearing_post, release_tray, fork_release_tray, winch_string
-changed: paddle_wheel, fork_wheel, marble_2
-removed: -
-53 of 56 original parts are untouched
+2. REDESIGN (wheel & axle tips the seesaw, wedge hangs from the pulley)
+added:   wedge_weight, pulley_string_wedge, pulley_string_trapdoor, wheel_axle, string_drum, winch_string, marble_3
+changed: top_ramp, wedge, paddle_wheel, fork_wheel, seesaw, marble_2
+removed: wedge_disc, feed_ramp, seesaw_weight, post_feed_ramp
+46 of 56 original parts are untouched
 
 wrote renders/compare_*.png

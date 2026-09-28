@@ -8,59 +8,115 @@ millimetres at the top of the file.
 pip install -r requirements.txt
 python smet_rev3_assembly.py   # writes output/smet_rev3_assembly.step and .stl
 python compare.py              # checks the rebuild against the original, writes renders/
-python motion_check.py         # collision + motion check for the wheel & axle winch
+python motion_check.py         # collision + motion check for the wedge and the wheel & axle
 ```
 
-* `output/smet_rev3_assembly.step`: 62 named, coloured parts (63 solids, because `fork_wheel` is two
+* `output/smet_rev3_assembly.step`: 59 named, coloured parts (60 solids, because `fork_wheel` is two
   uprights). Import it into Onshape.
 * `output/smet_rev3_assembly.stl`: one mesh for slicing and printing.
 * `renders/`: side-by-side previews (original STL = blue, updated design = orange), the labelled
-  `winch_detail.png`, and `comparison_report.txt`.
+  `wedge_detail.png` and `winch_detail.png`, and `comparison_report.txt`.
 
 ## What's in the model
 
-The tower is 312.0 × 304.8 × 757.0 mm overall (X × Y × Z). The base is 304.8 mm (12 in) square, and one
-marble overhangs the left edge by 7.2 mm. The machines, top to bottom:
+The tower is 312.0 × 304.8 × 757.0 mm overall (X × Y × Z). The base is 304.8 mm (12 in) square, and
+marble 1 (arriving from the previous group) overhangs the left edge by 7.2 mm. The machines, top to bottom:
 
 | Simple machine  | Parts |
 |-----------------|-------|
 | Pulley          | `pulley` spool on `pulley_axle`, held by `pulley_arm` |
-| Wedge           | `wedge` (plus `wedge_disc`) on the `top_ramp` |
+| Wedge           | `wedge`, hung from the pulley string and jammed into the `top_ramp` (see below) |
 | Screw           | `spiral_upper` / `spiral_lower`: a 2-turn helical channel on three ¼ in dowels |
-| Inclined planes | 6 `zigzag_ramp_*`, plus `transfer_chute`, `feed_ramp`, `exit_ramp` |
-| Wheel & axle    | `paddle_wheel` + `string_drum` on a shared `wheel_axle`: a winch that releases marble 2 (see below) |
+| Inclined planes | `entry_ramp`, `top_ramp`, `transfer_chute`, 6 `zigzag_ramp_*` |
+| Wheel & axle    | `paddle_wheel` + `string_drum` on a shared `wheel_axle`: a winch that tips the seesaw (see below) |
 | Levers          | `seesaw`, the counter-weighted `lever`, the tipping `cradle` + `rocker`, and the hinged `trapdoor` |
 
 Every straight ramp shares one U-channel profile: 25.4 mm wide, 2 mm walls, 3.2 mm floor, walls 10 mm tall.
 
-## Wheel & axle redesign: the winch
+## How the machine runs
 
-In the original design the paddle wheel spun loose on a fixed pin. Marble 1 tipped it and fell off, so no
-energy went anywhere else. Now the wheel is a winch whose work starts the second half of the machine:
+1. **Marble 1** comes from the previous group. It rolls down the `entry_ramp` (inclined plane) from the
+   left edge of the base onto the `trapdoor` (lever).
+2. The trap door tips and pulls a string over the `pulley` at the top. The other end of that string holds
+   the `wedge`, which is jammed into the `top_ramp` in front of **marble 2**. The pull yanks the wedge up
+   out of the ramp.
+3. Marble 2 rolls down the `spiral` (screw), the `transfer_chute` and the six `zigzag_ramp`s (inclined
+   planes).
+4. Marble 2 drops into a cup on the **wheel & axle** and stays there. Its weight turns the wheel, and a
+   drum on the same axle winds up a string that lifts the left end of the `seesaw` (lever).
+5. The seesaw tips, and **marble 3**, which was waiting on it, rolls off onto the counter-weighted `lever`.
+   That tips it into the `cradle` at the right edge, which hands it to the next group.
 
-1. Marble 1 drops through the lowest zig-zag ramp into a paddle. The paddles now have a 5 mm lip, so the
-   marble rides the wheel down (about 70°) before spilling onto the feed ramp as before.
-2. The wheel is fixed to a 3 mm axle that turns in the fork and a new front bearing post. A 16 mm string
-   drum on the front of the axle turns with the wheel and winds up the string.
-3. The string lifts the tail of the `release_tray`, which pivots above the exit ramp. The tray tips forward.
-4. Marble 2, which used to sit loose at the top of the exit ramp, rolls out onto the exit ramp and runs on
-   to the trap door.
+Each machine moves the next one. Marble 1 runs the trap door, which runs the pulley, which pulls the
+wedge. Marble 2 runs the wheel & axle, which moves the seesaw.
 
-Why it counts as a wheel & axle: marble 1 pushes on the wheel 20–32 mm from the axle, and the string pulls
-8.5 mm from it (the drum radius plus half the string). That multiplies the force by roughly 2.4–3.8 times.
-Tipping the loaded tray takes about 5.3 g of pull on the string, which is more than marble 1 weighs
-(about 5.2 g). Marble 1 couldn't tip the tray by pulling a string directly, but it can through the wheel &
-axle. That's the energy transfer: marble 1's potential energy → the wheel turning → the string lifting
-the tray → marble 2 moving. (Estimates assume PLA parts and a glass ⅝ in marble.)
+## Redesign 1: the wedge (`VERTICAL_WEDGE`)
 
-What changed: `paddle_wheel` (lips, bore now fixed to the axle), `fork_wheel` (bearing holes instead of a
-fixed pin, so its two uprights are now separate solids), and `marble_2` (now waits in the tray). Added: `wheel_axle`, `string_drum`,
-`axle_bearing_post`, `release_tray`, `fork_release_tray` (carries the tray pivot pin and a rest pin),
-and `winch_string`. The other 53 parts are unchanged. The model has no collisions: the wheel turns
-freely until the existing stop pin catches it at about 80°, and the tray tips 40° forward without
-hitting anything.
+In the original, the wedge sat loose on the ramp floor, so it didn't really work as a wedge. Now it is a
+small wooden wedge (12 mm thick, 20 mm tall, 17 mm wide at the bottom and 27 mm at the top) that hangs
+straight down from the pulley string. Its sloping sides are jammed into the top ramp against the top
+edges of the two side walls, and its flat face holds marble 2 back.
 
-Set `WINCH_RELEASE = False` to get the original passive paddle wheel back.
+When marble 1 tips the trap door, the trap door drops about 22° onto its stop and pulls the string down
+about 21 mm. The wedge only needs to rise about 15 mm to clear marble 2. Even fully raised, it still
+stops about 2.5 mm below the pulley.
+
+The wedge's weight is what holds the trap door level until marble 1 arrives. A wooden wedge on its own
+(about 2.6 g) is too light for that. So there is a stack of washers (`wedge_weight`) on its string,
+where the original design had a disc. **Tune it by hand:** add washers until the trap door stays up by
+itself, then check that marble 1 still tips it. If the trap door is printed solid PLA, the wedge plus
+washers needs to weigh about 21–30 g. A lower-infill trap door needs less.
+
+The tall guide walls on the top ramp were only there for the old wedge, so they're gone.
+
+## Redesign 2: the wheel & axle tips the seesaw (`WINCH_RELEASE`)
+
+In the original, the paddle wheel spun loose on a pin. Marble 2 knocked it round and fell off onto the
+feed ramp, so the wheel didn't pass any energy on (`renders/winch_detail.png`):
+
+1. Marble 2 drops through the lowest zig-zag ramp into the left paddle. Each paddle now has a 7 mm lip at
+   its tip, which makes a cup, so marble 2 stays on the wheel. Its weight turns the wheel. The marble
+   can't spill out before about 83°, and the wheel never turns that far.
+2. The wheel is glued to its axle, so the axle turns too. A small drum on the front of the axle (8 mm
+   across) winds up a string.
+3. The string runs down at an angle to a tab on the seesaw's left end and lifts that end. About 10° of
+   wheel turn is enough to tip the seesaw past level. At about 45° the seesaw lands on its existing
+   right-hand stop, and the string then holds the wheel still.
+4. **Marble 3** was resting against a new end wall on the seesaw's left end. Its weight is what used to
+   keep the seesaw down, so the seesaw's weight disc is gone. Marble 3 now rolls off the right end onto
+   the lever and runs the rest of the machine.
+
+The feed ramp (and its post) is removed, because nothing rolls from the wheel to the seesaw any more.
+The wheel & axle now moves the seesaw itself.
+
+Why it's a wheel & axle: marble 2 pushes on the wheel about 22 mm from the centre, and the string pulls
+4.5 mm from it (the drum radius plus half the string). The wheel multiplies marble 2's pull almost
+5 times. Lifting the seesaw's left end with marble 3 on it takes about 9.3 g of pull on the string, which
+is more than marble 2 weighs (about 5.2 g). Marble 2 could not lift it with a plain string, but through
+the wheel & axle it has about 2.7 times more force than it needs. (Estimates assume a solid-printed PLA
+seesaw and ⅝ in glass marbles.)
+
+**What to build.** New or changed pieces:
+
+| Part | Material |
+|------|----------|
+| `wedge` | small block of wood, cut to the wedge shape |
+| `wedge_weight` | steel washers threaded on the string (tune the number) |
+| `pulley_string_*`, `winch_string` | thread |
+| `wheel_axle` | 3 mm bamboo skewer or steel rod, glued into the wheel and drum |
+| `string_drum` | small 3D print (or a short piece of 5/16 in dowel with card flanges) |
+| `paddle_wheel` | reprint of the existing wheel with the taller lips |
+| `seesaw` | reprint with the new left end wall and string tab |
+| `top_ramp` | the same ramp without the tall guide walls |
+
+The rest of the model is unchanged, and nothing collides. `python motion_check.py` checks all of this:
+- the trap door drops, lifts the wedge clear of marble 2 without hitting the pulley, and marble 2 rolls
+  down to the spiral;
+- marble 2 sits in the wheel's cup and the wheel turns;
+- the seesaw tips onto its stop;
+- marble 3 rolls off the seesaw onto the lever.
+
+Set `VERTICAL_WEDGE = False` and `WINCH_RELEASE = False` to get the original design back.
 
 ## Adjustable dimensions (top of `smet_rev3_assembly.py`)
 
@@ -83,13 +139,14 @@ Set `WINCH_RELEASE = False` to get the original passive paddle wheel back.
 | Seesaw | `SEESAW_LEN`, `SEESAW_TILT`, `SEESAW_WEIGHT_D`, `SEESAW_WEIGHT_T` | 90, 1.0, 19, 1.52 |
 | Lever | `LEVER_LEN`, `LEVER_BOX_H`, `LEVER_BOX_WALL`, `LEVER_WEIGHT_D`, `LEVER_WEIGHT_H` | 137, 13, 1, 19, 10.64 |
 | Trap door | `TRAP_LEN`, `TRAP_KNUCKLE_R`, `TRAP_GATE_T`, `TRAP_STRING_HOLE_D` | 114, 3.5, 3.0, 1.8 |
-| Other ramps | `FEED_TILT`/`FEED_LEN`, `EXIT_TILT`/`EXIT_LEN`, `TOP_TILT`/`TOP_LEN`, `TRANSFER_TILT`/`TRANSFER_LEN` | 5/95.965, −3/175.941, 3/159.218, 5/151.413 |
-| Wedge | `WEDGE_H_LOW`, `WEDGE_H_HIGH` | 6, 18 |
+| Other ramps | `FEED_TILT`/`FEED_LEN`, `ENTRY_TILT`/`ENTRY_LEN`, `TOP_TILT`/`TOP_LEN`, `TRANSFER_TILT`/`TRANSFER_LEN` | 5/95.965, −3/175.941, 3/159.218, 5/151.413 |
+| Wedge | `VERTICAL_WEDGE`, `WEDGE_T`, `WEDGE_HEIGHT`, `WEDGE_HALF_ANGLE` (deg), `WEDGE_GAP` | True, 12, 20, 15, 1 |
+| | `WEDGE_WEIGHT_D`, `WEDGE_WEIGHT_T`, `PULLEY_STRING_D` | 19, 3.04, 1.0 |
+| | original block wedge: `WEDGE_H_LOW`, `WEDGE_H_HIGH` | 6, 18 |
 | Pulley | `PULLEY_FLANGE_D`, `PULLEY_HUB_D`, `PULLEY_HUB_L`, `PULLEY_FLANGE_T` | 28, 20, 10, 1.5 |
-| Winch | `WINCH_RELEASE`, `WHEEL_LIP_H`, `DRUM_D`, `DRUM_FLANGE_D`, `DRUM_L` | True, 5, 16, 28, 12 |
-| | `AXLE_Y`, `BEARING_POST_Y`, `STRING_D` | (167, 286), (189.2, 197.2), 1.0 |
-| Release tray | `TRAY_PIVOT` (x, z), `TRAY_REST_TILT` (deg), `TRAY_FRONT`, `TRAY_BACK`, `TRAY_TAIL` | (74, 216), 5, 10, 19, 7 |
-| | `TRAY_REST_U`, `TRAY_FORK_X` | −10, (62, 78) |
+| Winch | `WINCH_RELEASE`, `WHEEL_LIP_H`, `DRUM_D`, `DRUM_FLANGE_D`, `DRUM_L` | True, 7, 8, 16, 8 |
+| | `AXLE_Y`, `DRUM_Y0`, `STRING_D` | (224, 286), 224, 1.0 |
+| Seesaw (redesign) | `SEESAW_END_WALL_H`, `SEESAW_TAB_U`, `SEESAW_TAB_Y0` | 14, (−45, −39), 226 |
 | Marbles | `MARBLE_D` | 15.875 (⅝ in) |
 
 Positions are also variables: the `*_ANCHOR` points, the pivot coordinates and the `POSTS`, `STOP_POSTS`
@@ -98,8 +155,8 @@ tilt, update the post that holds it up, then re-run `compare.py` or check the re
 
 ## How close is the rebuild?
 
-`compare.py` checks the rebuild against the original STL with `WINCH_RELEASE = False`, so the check is
-not affected by the redesign. From `renders/comparison_report.txt`:
+`compare.py` checks the rebuild against the original STL with both redesigns switched off, so the
+check is not affected by them. From `renders/comparison_report.txt`:
 
 * All 55 bodies in the original mesh match a rebuilt part. The worst bounding-box difference on any part is 0.007 mm.
 * The overall bounding box matches to within 0.005 mm.
