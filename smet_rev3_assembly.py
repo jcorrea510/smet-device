@@ -2,10 +2,13 @@
 SMET rev3 simple-machines marble tower -- parametric CadQuery rebuild.
 
 Rebuilt from SMET_rev3_assembly.stl (the original mesh had no CAD source).
-With WINCH_RELEASE = True (the default) the paddle wheel is redesigned as a
-wheel & axle winch: marble 2 stays in a cup on the wheel, and the axle winds a
-string that pulls a peg out of the feed ramp to release marble 3.  Set it to
-False to get the original design back.
+Two redesigns, both on by default:
+  WINCH_RELEASE  -- marble 2 stays in a cup on the paddle wheel; the wheel's
+                    axle winds a string that tips the seesaw, which rolls
+                    marble 3 onto the lever.
+  VERTICAL_WEDGE -- the wedge hangs from the pulley string and is jammed into
+                    the top ramp; the trap door pulls it up to free marble 2.
+Set both to False to get the original design back.
 Every dimension is in millimetres.  Edit the variables in the PARAMETERS
 section below and re-run:
 
@@ -112,32 +115,23 @@ WHEEL_PADDLE_Y = (252.0, 272.0)
 WHEEL_PADDLES = 4
 
 # ---- Wheel & axle winch (redesign) --------------------------------------------
-# True  = marble 2 drops into a cup on the wheel and stays there; its weight
-#         turns the wheel, the axle winds a string, the string pulls a peg
-#         down out of the feed ramp and marble 3 rolls on to the seesaw.
+# True  = marble 2 drops into a cup on the wheel and stays there.  Its weight
+#         turns the wheel; the drum on the same axle winds a string that lifts
+#         the left end of the seesaw, so marble 3 (waiting on the seesaw) rolls
+#         off onto the lever.  The feed ramp is no longer needed.
 # False = the original passive paddle wheel (loose on a fixed pin).
 WINCH_RELEASE = True
 WHEEL_LIP_H = 7.0               # cup lip on each paddle tip (holds marble 2)
-AXLE_Y = (224.0, 286.0)         # rotating axle (PIN_D rod or bamboo skewer)
+AXLE_Y = (224.0, 286.0)         # rotating axle (PIN_D bamboo skewer or rod)
 DRUM_Y0 = 224.0                 # front face of the string drum
-DRUM_D = 14.0                   # winding diameter -- the "axle" of the wheel & axle
-DRUM_FLANGE_D = 24.0
+DRUM_D = 8.0                    # winding diameter -- the "axle" of the wheel & axle
+DRUM_FLANGE_D = 16.0
 DRUM_FLANGE_T = 2.0
 DRUM_L = 8.0                    # winding length between the flanges
 STRING_D = 1.0
-
-# Release lever: a wooden stick under the feed ramp, pivoting on a nail in the
-# front upright of the wheel fork.  A peg on its back end pokes up through a
-# slot in the feed ramp and holds marble 3; the string lifts the front end.
-LEVER_STICK = 4.0               # square section of the stick and the peg
-RELEASE_PIVOT_Y = 242.0         # nail position (middle of the front fork upright)
-RELEASE_PEG_Y = 262.0           # peg position (middle of the feed ramp)
-RELEASE_PEG_UP = 4.0            # how far the peg sticks up above the ramp floor
-RELEASE_NAIL_D = 2.0
-RELEASE_SLOT = (6.0, 10.0)      # slot in the feed ramp floor (x, y)
-RELEASE_FRONT_Y = 222.0         # front end of the lever stick
-COIN_D, COIN_T = 19.05, 1.52    # a US penny taped under the front end keeps the peg up
-COIN_Y = 226.0
+SEESAW_END_WALL_H = 14.0        # new end wall at the seesaw's left end (marble 3 rests on it)
+SEESAW_TAB_U = (-45.0, -39.0)   # string tab position along the seesaw (from its pivot)
+SEESAW_TAB_Y0 = 226.0           # the tab reaches forward to here, under the drum
 
 # ---- Feed ramp (5 deg) between wheel and seesaw ------------------------------
 FEED_TILT = 5.0
@@ -212,6 +206,21 @@ WEDGE_Z0 = 667.001
 WEDGE_H_LOW, WEDGE_H_HIGH = 6.0, 18.0
 WEDGE_DISC_D, WEDGE_DISC_T = 19.0, 3.04
 WEDGE_DISC_C = (235.4, 205.0, 677.801)
+
+# Wedge redesign: True = a wooden wedge hangs straight down from the pulley
+# string and is jammed (wedged) into the top ramp between its side walls,
+# holding marble 2.  When the trap door pulls the string, the wedge is pulled
+# up out of the ramp.  False = the original block wedge on the ramp floor.
+VERTICAL_WEDGE = True
+WEDGE_T = 12.0              # thickness along the ramp, centred under the pulley
+WEDGE_HEIGHT = 20.0
+WEDGE_HALF_ANGLE = 15.0     # taper of each side face
+WEDGE_GAP = 1.0             # clearance under the wedge while it is jammed
+PULLEY_STRING_D = 1.0
+# Washers stacked on the wedge's string.  The wedge's weight is what holds the
+# trap door level, so add or remove washers until the trap door just stays up
+# by itself and tips when marble 1 rolls onto it.
+WEDGE_WEIGHT_D, WEDGE_WEIGHT_T, WEDGE_WEIGHT_HOLE = 19.0, 3.04, 3.0
 
 PULLEY_Y, PULLEY_Z = 195.0, 727.001
 PULLEY_X0 = 228.5
@@ -362,11 +371,14 @@ def angle_after(start, a):
 # BUILD
 # =============================================================================
 
-def build(winch_release=None):
-    """Build every part.  winch_release overrides WINCH_RELEASE (False
-    rebuilds the original design exactly, as used by compare.py)."""
+def build(winch_release=None, vertical_wedge=None):
+    """Build every part.  winch_release / vertical_wedge override
+    WINCH_RELEASE / VERTICAL_WEDGE; passing False for both rebuilds the
+    original design exactly, as used by compare.py."""
     if winch_release is None:
         winch_release = WINCH_RELEASE
+    if vertical_wedge is None:
+        vertical_wedge = VERTICAL_WEDGE
     parts = {}   # name -> (Workplane, colour)
     WOOD = (0.80, 0.62, 0.40)
     RAMP = (0.25, 0.55, 0.85)
@@ -425,21 +437,64 @@ def build(winch_release=None):
                  hole_start=(END_WALL_T, TRANSFER_DROP_HOLE))
     parts["transfer_chute"] = (place(tr, TRANSFER_ANCHOR, TRANSFER_TILT, TRANSFER_YAW), RAMP)
 
-    # ---- Top ramp with vertical catch chute, wedge, pulley ----
+    # ---- Top ramp, wedge, pulley ----
     top = place(channel(TOP_LEN, end_wall_end=END_WALL_H), TOP_ANCHOR, TOP_TILT)
     ax, ay, az = TOP_ANCHOR
-    chute_z0 = az + (TOP_CHUTE_X[0] - ax) * math.tan(math.radians(TOP_TILT)) + CH_FLOOR
-    for y0 in (ay, ay + CH_W - CH_WALL):
-        top = top.union(box(TOP_CHUTE_X[0], y0, chute_z0, TOP_CHUTE_X[1], y0 + CH_WALL, TOP_CHUTE_TOP))
+    if not vertical_wedge:
+        # original: tall guide walls for the block wedge
+        chute_z0 = az + (TOP_CHUTE_X[0] - ax) * math.tan(math.radians(TOP_TILT)) + CH_FLOOR
+        for y0 in (ay, ay + CH_W - CH_WALL):
+            top = top.union(box(TOP_CHUTE_X[0], y0, chute_z0, TOP_CHUTE_X[1], y0 + CH_WALL, TOP_CHUTE_TOP))
     parts["top_ramp"] = (top, RAMP)
 
-    wx0, wy0, wx1, wy1 = WEDGE
-    wedge = (cq.Workplane("XZ", origin=(0, wy1, 0))
-             .polyline([(wx0, WEDGE_Z0), (wx1, WEDGE_Z0), (wx1, WEDGE_Z0 + WEDGE_H_HIGH),
-                        (wx0, WEDGE_Z0 + WEDGE_H_LOW)]).close()
-             .extrude(wy1 - wy0))
-    parts["wedge"] = (wedge, MECH)
-    parts["wedge_disc"] = (cyl(WEDGE_DISC_D, WEDGE_DISC_C, (0, 0, 1), WEDGE_DISC_T), METAL)
+    marble_2 = MARBLE_2
+    if vertical_wedge:
+        # Heights on the tilted top ramp at a given x
+        t3, c3 = math.tan(math.radians(TOP_TILT)), math.cos(math.radians(TOP_TILT))
+        top_bottom = lambda x: az + (x - ax) * t3
+        top_floor = lambda x: top_bottom(x) + CH_FLOOR / c3
+        top_wall = lambda x: top_bottom(x) + (CH_FLOOR + CH_WALL_H) / c3
+        cx = PULLEY_X0 + PULLEY_FLANGE_T + PULLEY_HUB_L / 2      # under the pulley
+        yc = ay + CH_W / 2
+        wx0, wx1 = cx - WEDGE_T / 2, cx + WEDGE_T / 2
+        # The wedge's sloping sides jam against the top edges of the channel
+        # walls (at the high end of the wedge, where the walls are highest).
+        gap_w = CH_W - 2 * CH_WALL
+        z_jam = top_wall(wx1)
+        z_b = top_floor(wx1) + WEDGE_GAP
+        z_t = z_b + WEDGE_HEIGHT
+        ta = math.tan(math.radians(WEDGE_HALF_ANGLE))
+        width = lambda z: gap_w + 2 * (z - z_jam) * ta
+        wb, wt = width(z_b), width(z_t)
+        wedge = (cq.Workplane("YZ", origin=(wx0, 0, 0))
+                 .polyline([(yc - wb / 2, z_b), (yc + wb / 2, z_b), (yc + wt / 2, z_t), (yc - wt / 2, z_t)])
+                 .close().extrude(WEDGE_T))
+        parts["wedge"] = (wedge, WOOD)
+        # Pulley string: wedge -> over the hub -> trap door
+        hub_r = PULLEY_HUB_D / 2 + PULLEY_STRING_D / 2
+        ww = cyl(WEDGE_WEIGHT_D, (cx, PULLEY_Y + hub_r, z_t), (0, 0, 1), WEDGE_WEIGHT_T).cut(
+            cyl(WEDGE_WEIGHT_HOLE, (cx, PULLEY_Y + hub_r, z_t - 1), (0, 0, 1), WEDGE_WEIGHT_T + 2))
+        parts["wedge_weight"] = (ww, METAL)
+        parts["pulley_string_wedge"] = (cyl(PULLEY_STRING_D, (cx, PULLEY_Y + hub_r, z_t), (0, 0, 1),
+                                            PULLEY_Z - z_t), (0.20, 0.20, 0.20))
+        tx0, ty0, tx1, ty1 = TRAP_STRING_TAB
+        p0 = cq.Vector(cx, PULLEY_Y - hub_r, PULLEY_Z)
+        p1 = cq.Vector((tx0 + tx1) / 2, (ty0 + ty1) / 2, TRAP_Z0 + CH_FLOOR)
+        parts["pulley_string_trapdoor"] = (cyl(PULLEY_STRING_D, p0.toTuple(), (p1 - p0).toTuple(),
+                                               (p1 - p0).Length), (0.20, 0.20, 0.20))
+        # Marble 2 rests against the wedge's downhill face
+        r = MARBLE_D / 2
+        s3 = math.sin(math.radians(TOP_TILT))
+        px = wx1 + r + r * s3
+        marble_2 = (wx1 + r, yc, top_floor(px) + r * c3)
+    else:
+        wx0, wy0, wx1, wy1 = WEDGE
+        wedge = (cq.Workplane("XZ", origin=(0, wy1, 0))
+                 .polyline([(wx0, WEDGE_Z0), (wx1, WEDGE_Z0), (wx1, WEDGE_Z0 + WEDGE_H_HIGH),
+                            (wx0, WEDGE_Z0 + WEDGE_H_LOW)]).close()
+                 .extrude(wy1 - wy0))
+        parts["wedge"] = (wedge, MECH)
+        parts["wedge_disc"] = (cyl(WEDGE_DISC_D, WEDGE_DISC_C, (0, 0, 1), WEDGE_DISC_T), METAL)
 
     fl = PULLEY_FLANGE_T
     x0 = PULLEY_X0
@@ -474,7 +529,14 @@ def build(winch_release=None):
     wheel = wheel.cut(cyl(bore, (WHEEL_CX, WHEEL_Y[0] - 1, WHEEL_CZ), (0, 1, 0), hub_len + 2))
     parts["paddle_wheel"] = (wheel, MECH)
 
-    marbles = {"marble_1": MARBLE_1, "marble_2": MARBLE_2}
+    marbles = {"marble_1": MARBLE_1, "marble_2": marble_2}
+    seesaw_piv = (SEESAW_PIVOT[0], RAMP_Y0, SEESAW_PIVOT[1])
+    st = math.radians(SEESAW_TILT)
+
+    def seesaw_to_global(u, n):
+        return (seesaw_piv[0] + u * math.cos(st) - n * math.sin(st),
+                seesaw_piv[2] + u * math.sin(st) + n * math.cos(st))
+
     if winch_release:
         # Rotating axle: the wheel and the drum are both glued to it
         parts["wheel_axle"] = (cyl(PIN_D, (WHEEL_CX, AXLE_Y[0], WHEEL_CZ), (0, 1, 0),
@@ -487,42 +549,27 @@ def build(winch_release=None):
                 .cut(cyl(PIN_D, (WHEEL_CX, DRUM_Y0 - 1, WHEEL_CZ), (0, 1, 0), DRUM_L + 2 * fl + 2)))
         parts["string_drum"] = (drum, MECH)
 
-        # Release lever under the feed ramp.  The string hangs from the side
-        # of the drum that rises when marble 2 turns the wheel.
-        t = math.tan(math.radians(FEED_TILT))
-        ramp_bottom = lambda x: FEED_ANCHOR[2] - (x - FEED_ANCHOR[0]) * t
-        floor_top = lambda x: ramp_bottom(x) + CH_FLOOR / math.cos(math.radians(FEED_TILT))
-        sx = WHEEL_CX + DRUM_D / 2 + STRING_D / 2
+        # String from the drum to the tab on the seesaw's left end.  It leaves
+        # the drum on the side that winds in when marble 2 turns the wheel
+        # (anticlockwise seen from the front).
         drum_y = DRUM_Y0 + fl + DRUM_L / 2
-        hs = LEVER_STICK / 2
-        lx0, lx1 = sx - hs, sx + hs
-        top = ramp_bottom(lx1)                       # stick rests against the ramp underside
-        pivot_z = top - hs
-        lever = box(lx0, RELEASE_FRONT_Y, top - LEVER_STICK, lx1, RELEASE_PEG_Y + hs, top)
-        peg_top = floor_top(sx) + RELEASE_PEG_UP
-        lever = lever.union(box(lx0, RELEASE_PEG_Y - hs, top, lx1, RELEASE_PEG_Y + hs, peg_top))
-        lever = lever.cut(cyl(RELEASE_NAIL_D + 0.5, (lx0 - 1, RELEASE_PIVOT_Y, pivot_z), (1, 0, 0), LEVER_STICK + 2))
-        parts["release_lever"] = (lever, WOOD)
-        nail = cyl(RELEASE_NAIL_D, (WHEEL_CX, RELEASE_PIVOT_Y, pivot_z), (1, 0, 0), lx1 + 1.5 - WHEEL_CX)
-        parts["release_nail"] = (nail, METAL)
-        parts["counterweight_penny"] = (cyl(COIN_D, (sx, COIN_Y, top - LEVER_STICK - COIN_T),
-                                            (0, 0, 1), COIN_T), (0.72, 0.45, 0.20))
-        parts["winch_string"] = (cyl(STRING_D, (sx, drum_y, top), (0, 0, 1), WHEEL_CZ - top),
-                                 (0.20, 0.20, 0.20))
+        tab_u = (SEESAW_TAB_U[0] + SEESAW_TAB_U[1]) / 2
+        gx, gz = seesaw_to_global(tab_u, SEESAW_FLOOR_ABOVE + CH_FLOOR)
+        rho = DRUM_D / 2 + STRING_D / 2
+        dx, dz = gx - WHEEL_CX, gz - WHEEL_CZ
+        beta, alpha = math.atan2(dz, dx), math.acos(rho / math.hypot(dx, dz))
+        for phi in (beta + alpha, beta - alpha):
+            tx, tz = WHEEL_CX + rho * math.cos(phi), WHEEL_CZ + rho * math.sin(phi)
+            # surface moves along (-sin, cos); winding means moving away from the tab
+            if -math.sin(phi) * (gx - tx) + math.cos(phi) * (gz - tz) < 0:
+                break
+        v = cq.Vector(gx - tx, 0, gz - tz)
+        parts["winch_string"] = (cyl(STRING_D, (tx, drum_y, tz), v.toTuple(), v.Length), (0.20, 0.20, 0.20))
 
-        # Marble 3 waits on the feed ramp, resting against the peg's top edge
-        r, s5, c5 = MARBLE_D / 2, math.sin(math.radians(FEED_TILT)), math.cos(math.radians(FEED_TILT))
-        centre = lambda x: (x + r * s5, floor_top(x) + r * c5)
-        lo, hi = lx0 - 2 * r, lx0
-        for _ in range(60):
-            mid = (lo + hi) / 2
-            cx, cz = centre(mid)
-            if math.hypot(cx - lx0, cz - peg_top) > r:
-                lo = mid
-            else:
-                hi = mid
-        cx, cz = centre(lo)
-        marbles["marble_3"] = (cx, RAMP_Y0 + CH_W / 2, cz)
+        # Marble 3 waits on the seesaw, against its new left end wall
+        r = MARBLE_D / 2
+        mx, mz = seesaw_to_global(-SEESAW_LEN / 2 + END_WALL_T + r, SEESAW_FLOOR_ABOVE + CH_FLOOR + r)
+        marbles["marble_3"] = (mx, RAMP_Y0 + CH_W / 2, mz)
 
     # ---- Pivot forks (uprights + pin) ----
     for name, (fx0, prongs, ztop, pin_z, pin_y) in FORKS.items():
@@ -537,20 +584,14 @@ def build(winch_release=None):
             # The axle turns with the wheel, so the fork gets bearing holes
             # instead of a fixed pin.
             f = f.cut(cyl(PIVOT_HOLE_D, (fx0 + t / 2, pin_y[0] - 1, pin_z), (0, 1, 0), pin_y[1] - pin_y[0] + 2))
-            f = f.cut(parts["release_nail"][0])        # nail driven into the front upright
             parts[name] = (f, SUPPORT)
             continue
         f = f.union(cyl(PIN_D, (fx0 + t / 2, pin_y[0], pin_z), (0, 1, 0), pin_y[1] - pin_y[0]))
         parts[name] = (f, SUPPORT)
 
-    # ---- Feed ramp ----
-    feed = place(channel(FEED_LEN), FEED_ANCHOR, -FEED_TILT)
-    if winch_release:
-        # slot for the release peg
-        px = WHEEL_CX + DRUM_D / 2 + STRING_D / 2
-        feed = feed.cut(box(px - RELEASE_SLOT[0] / 2, RELEASE_PEG_Y - RELEASE_SLOT[1] / 2, FEED_ANCHOR[2] - 30,
-                            px + RELEASE_SLOT[0] / 2, RELEASE_PEG_Y + RELEASE_SLOT[1] / 2, FEED_ANCHOR[2] + 5))
-    parts["feed_ramp"] = (feed, RAMP)
+    # ---- Feed ramp (original design only: marble 2 rolled from the wheel to the seesaw) ----
+    if not winch_release:
+        parts["feed_ramp"] = (place(channel(FEED_LEN), FEED_ANCHOR, -FEED_TILT), RAMP)
 
     # ---- Seesaw ----
     half = SEESAW_LEN / 2
@@ -558,11 +599,24 @@ def build(winch_release=None):
     ss = ss.union(box(-SEESAW_BLOCK_W / 2, 0, -SEESAW_BLOCK_BELOW,
                       SEESAW_BLOCK_W / 2, CH_W, SEESAW_FLOOR_ABOVE))
     ss = ss.cut(cyl(PIVOT_HOLE_D, (0, -1, 0), (0, 1, 0), CH_W + 2))
-    sw = cyl(SEESAW_WEIGHT_D, (SEESAW_WEIGHT_U, CH_W / 2, SEESAW_FLOOR_ABOVE - SEESAW_WEIGHT_T),
-             (0, 0, 1), SEESAW_WEIGHT_T)
-    piv = (SEESAW_PIVOT[0], RAMP_Y0, SEESAW_PIVOT[1])
-    parts["seesaw"] = (place(ss, piv, SEESAW_TILT), MECH)
-    parts["seesaw_weight"] = (place(sw, piv, SEESAW_TILT), METAL)
+    if winch_release:
+        # End wall for marble 3 to rest against, and a tab reaching forward
+        # under the drum for the winch string.  Marble 3's weight keeps the
+        # left end down, so the old weight disc is not needed.
+        ss = ss.union(box(-half, 0, SEESAW_FLOOR_ABOVE, -half + END_WALL_T, CH_W,
+                          SEESAW_FLOOR_ABOVE + CH_FLOOR + SEESAW_END_WALL_H))
+        u0, u1 = SEESAW_TAB_U
+        ss = ss.union(box(u0, SEESAW_TAB_Y0 - RAMP_Y0, SEESAW_FLOOR_ABOVE, u1, 0,
+                          SEESAW_FLOOR_ABOVE + CH_FLOOR))
+        hole_y = DRUM_Y0 + DRUM_FLANGE_T + DRUM_L / 2 - RAMP_Y0
+        ss = ss.cut(cyl(TRAP_STRING_HOLE_D, ((u0 + u1) / 2, hole_y, SEESAW_FLOOR_ABOVE - 1), (0, 0, 1),
+                        CH_FLOOR + 2))
+        parts["seesaw"] = (place(ss, seesaw_piv, SEESAW_TILT), MECH)
+    else:
+        sw = cyl(SEESAW_WEIGHT_D, (SEESAW_WEIGHT_U, CH_W / 2, SEESAW_FLOOR_ABOVE - SEESAW_WEIGHT_T),
+                 (0, 0, 1), SEESAW_WEIGHT_T)
+        parts["seesaw"] = (place(ss, seesaw_piv, SEESAW_TILT), MECH)
+        parts["seesaw_weight"] = (place(sw, seesaw_piv, SEESAW_TILT), METAL)
 
     # ---- Counter-weighted lever ----
     lv = place(channel(LEVER_LEN, end_wall_start=END_WALL_H), (LEVER_X0, RAMP_Y0, LEVER_Z0))
@@ -619,6 +673,8 @@ def build(winch_release=None):
 
     # ---- Support posts ----
     for name, (x0, y0, x1, y1, zt) in POSTS.items():
+        if winch_release and name == "post_feed_ramp":
+            continue
         parts[name] = (box(x0, y0, z_deck, x1, y1, zt), SUPPORT)
     for name, (x0, x1, py0, qy0, y1, zt, t) in STOP_POSTS.items():
         parts[name] = (box(x0, py0, z_deck, x1, y1, zt).union(box(x0, qy0, zt, x1, y1, zt + t)), SUPPORT)

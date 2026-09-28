@@ -3,10 +3,10 @@ Compare the CadQuery rebuild against the original STL.
 
     python compare.py
 
-* rebuilds the ORIGINAL design (WINCH_RELEASE=False), matches every body of
+* rebuilds the ORIGINAL design (both redesigns off), matches every body of
   the original mesh to a rebuilt part and prints the bounding-box and volume
   difference of each pair, plus the overall bounding box and volume
-* lists the parts the wheel & axle redesign adds or changes
+* lists the parts the redesign adds, changes or removes
 * renders the original STL next to the updated design into ./renders/
 """
 
@@ -118,48 +118,70 @@ def render_compare(orig, rebuilt, path, title, views=VIEWS, crop=None):
 
 
 WINCH_PARTS = ["paddle_wheel", "wheel_axle", "string_drum", "fork_wheel", "wheel_stop_pin",
-               "release_lever", "release_nail", "counterweight_penny", "winch_string",
-               "feed_ramp", "post_feed_ramp", "marble_3"]
+               "winch_string", "seesaw", "fork_seesaw", "seesaw_stop_left", "seesaw_stop_right",
+               "marble_3", "lever"]
 WINCH_STEPS = ("1. Marble 2 drops into a cup on the wheel and stays there; its weight turns the wheel.   "
                "2. The drum on the same axle winds up the string.\n"
-               "3. The string lifts the front of the release lever, so the peg drops out of the feed ramp.   "
-               "4. Marble 3 rolls on to the seesaw, lever and cradle.")
+               "3. The string lifts the left end of the seesaw.   "
+               "4. The seesaw tips and marble 3 rolls off onto the lever, then on to the cradle.")
+WEDGE_PARTS = ["pulley", "pulley_axle", "pulley_arm", "wedge", "wedge_weight", "pulley_string_wedge",
+               "pulley_string_trapdoor", "top_ramp", "marble_2"]
+WEDGE_STEPS = ("1. The wedge hangs from the pulley string and is jammed into the top ramp between its walls, "
+               "holding marble 2.\n"
+               "2. Marble 1 tips the trap door, which pulls the other end of the string down.   "
+               "3. The wedge is pulled up out of the ramp and marble 2 rolls to the spiral.")
 
 
-def render_winch(parts, path):
-    """Labelled view of just the wheel & axle winch and what it drives."""
-    fig = plt.figure(figsize=(18, 7.5))
-    meshes = {n: part_mesh(parts[n][0]) for n in WINCH_PARTS if n in parts}
-    # show marble 2 where it ends up: in the cup of the left paddle
-    r = model.MARBLE_D / 2
-    cup = (model.WHEEL_CX - (model.WHEEL_R - model.WHEEL_PADDLE_T - r), 262.0,
-           model.WHEEL_CZ + model.WHEEL_PADDLE_T / 2 + r)
-    meshes["marble_2 (in cup)"] = part_mesh(cq.Workplane("XY").sphere(r).translate(cup))
-    allm = trimesh.util.concatenate(list(meshes.values()))
-    lo, hi = allm.bounds
-    lo, hi = lo.copy(), hi.copy()
-    lo[2] = 150.0                     # show the uprights only near the top
-    center, radius = (lo + hi) / 2, (hi - lo).max() / 2 * 0.72
-    views = ((20, -55, "iso front-left"), (0, -90, "front"), (0, 0, "side, from the right"))
+def render_detail(parts, names, path, title, steps, views, crop, extra=None):
+    """Close-up of a few parts only, clipped to `crop` = (min_xyz, max_xyz)."""
+    fig = plt.figure(figsize=(6 * len(views), 7.5))
+    meshes = {n: part_mesh(parts[n][0]) for n in names if n in parts}
+    meshes.update(extra or {})
+    lo, hi = np.asarray(crop[0], float), np.asarray(crop[1], float)
+    center, radius = (lo + hi) / 2, (hi - lo).max() / 2
     for i, (el, az, name) in enumerate(views):
         ax = fig.add_subplot(1, len(views), i + 1, projection="3d")
         for n, m in meshes.items():
-            m = trimesh.intersections.slice_mesh_plane(m, (0, 0, 1), (0, 0, lo[2]))
-            color = parts[n][1] if n in parts else (0.15, 0.75, 0.35)
-            _draw(ax, m, color, center, radius, el, az)
+            for k in range(3):
+                for bound, sign in ((lo[k], 1.0), (hi[k], -1.0)):
+                    normal = np.zeros(3)
+                    normal[k] = sign
+                    origin = np.zeros(3)
+                    origin[k] = bound
+                    m = trimesh.intersections.slice_mesh_plane(m, normal, origin)
+            if len(m.faces):
+                color = parts[n][1] if n in parts else (0.15, 0.75, 0.35)
+                _draw(ax, m, color, center, radius, el, az)
         ax.set_title(name, fontsize=10)
-    fig.suptitle("Wheel & axle winch: marble 2's weight releases marble 3", fontsize=13)
-    fig.text(0.5, 0.02, WINCH_STEPS, ha="center", fontsize=10)
+    fig.suptitle(title, fontsize=13)
+    fig.text(0.5, 0.02, steps, ha="center", fontsize=10)
     plt.subplots_adjust(left=0, right=1, bottom=0.08, top=0.93, wspace=0)
     plt.savefig(path, dpi=90)
     plt.close(fig)
+
+
+def render_winch(parts, path):
+    r = model.MARBLE_D / 2
+    cup = (model.WHEEL_CX - (model.WHEEL_R - model.WHEEL_PADDLE_T - r), 262.0,
+           model.WHEEL_CZ + model.WHEEL_PADDLE_T / 2 + r)
+    extra = {"marble_2 (in cup)": part_mesh(cq.Workplane("XY").sphere(r).translate(cup))}
+    render_detail(parts, WINCH_PARTS, path, "Wheel & axle: marble 2's weight tips the seesaw", WINCH_STEPS,
+                  ((20, -55, "iso front-left"), (0, -90, "front"), (0, 0, "side, from the right")),
+                  ((0, 215, 185), (210, 290, 345)), extra)
+
+
+def render_wedge(parts, path):
+    render_detail(parts, WEDGE_PARTS, path, "Wedge: hung from the pulley and jammed into the top ramp",
+                  WEDGE_STEPS,
+                  ((20, -55, "iso front-left"), (0, -90, "front"), (0, 0, "side, from the right")),
+                  ((195, 165, 655), (275, 245, 745)))
 
 
 def main():
     orig = trimesh.load(ORIGINAL)
 
     # ---- 1. Fidelity: the original design (winch off) vs the original STL ----
-    parts = model.build(winch_release=False)
+    parts = model.build(winch_release=False, vertical_wedge=False)
     obodies = original_bodies(orig)
     # The original's two spiral sections only form a closed volume together,
     # so compare them against the two rebuilt sections combined.
@@ -173,7 +195,7 @@ def main():
     pmeshes = [part_mesh(parts[n][0]) for n in names]
     cost = np.array([[np.abs(o.bounds - p.bounds).sum() for p in pmeshes] for o in obodies])
     rows, cols = linear_sum_assignment(cost)
-    print("1. ORIGINAL DESIGN (WINCH_RELEASE=False) vs the original STL")
+    print("1. ORIGINAL DESIGN (WINCH_RELEASE=False, VERTICAL_WEDGE=False) vs the original STL")
     print(f"Original bodies: {len(obodies)}   Rebuilt parts: {len(names)}\n")
     print(f"{'part':22s} {'max bbox err':>12s} {'orig vol':>12s} {'new vol':>12s} {'vol err':>8s}")
     worst_bb = 0.0
@@ -197,8 +219,8 @@ def main():
     print(f"volume     {ov:,.0f} mm^3{'':9s} {nv:,.0f} mm^3  ({100 * (nv - ov) / ov:+.3f}%)")
 
     # ---- 2. What the wheel & axle redesign changes ----
-    old = model.build(winch_release=False)
-    new = model.build(winch_release=True)
+    old = model.build(winch_release=False, vertical_wedge=False)
+    new = model.build()
     added = [n for n in new if n not in old]
     removed = [n for n in old if n not in new]
     changed = []
@@ -210,7 +232,7 @@ def main():
                        abs(ba.xmax - bb.xmax), abs(ba.ymax - bb.ymax), abs(ba.zmax - bb.zmax))
             if diff > 1e-3 or abs(a.Volume() - b.Volume()) > 1e-3:
                 changed.append(n)
-    print("\n2. WHEEL & AXLE REDESIGN (WINCH_RELEASE=True)")
+    print("\n2. REDESIGN (wheel & axle tips the seesaw, wedge hangs from the pulley)")
     print("added:  ", ", ".join(added) or "-")
     print("changed:", ", ".join(changed) or "-")
     print("removed:", ", ".join(removed) or "-")
@@ -224,10 +246,11 @@ def main():
         render_compare(orig, rebuilt, "renders/compare_overview.png",
                        "Whole assembly: original (top) vs updated design (bottom)")
         render_compare(orig, rebuilt, "renders/compare_wheel_axle.png",
-                       "Wheel & axle: original (top) vs winch that releases marble 3 (bottom)",
+                       "Wheel & axle: original (top) vs winch that tips the seesaw (bottom)",
                        views=[(20, -55, "iso front-left"), (0, -90, "front"), (0, 0, "right side")],
-                       crop=((-10, 210, 230), (110, 290, 350)))
+                       crop=((-10, 210, 230), (200, 290, 350)))
         render_winch(new, "renders/winch_detail.png")
+        render_wedge(new, "renders/wedge_detail.png")
         detail = [(30, -60, "iso"), (20, 150, "iso back"), (90, -90, "top")]
         render_compare(orig, rebuilt, "renders/compare_spiral_top.png",
                        "Spiral, top ramp, wedge and pulley",

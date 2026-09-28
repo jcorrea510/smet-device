@@ -1,4 +1,4 @@
-1. ORIGINAL DESIGN (WINCH_RELEASE=False) vs the original STL
+1. ORIGINAL DESIGN (WINCH_RELEASE=False, VERTICAL_WEDGE=False) vs the original STL
 Original bodies: 55   Rebuilt parts: 55
 
 part                   max bbox err     orig vol      new vol  vol err
@@ -65,10 +65,10 @@ bbox min   [-7.222  0.     0.   ]   [-7.217  0.     0.   ]
 bbox max   [304.8   304.8   757.001] [304.8   304.8   757.001]
 volume     3,404,209 mm^3          3,406,020 mm^3  (+0.053%)
 
-2. WHEEL & AXLE REDESIGN (WINCH_RELEASE=True)
-added:   wheel_axle, string_drum, release_lever, release_nail, counterweight_penny, winch_string, marble_3
-changed: paddle_wheel, fork_wheel, feed_ramp
-removed: -
-53 of 56 original parts are untouched
+2. REDESIGN (wheel & axle tips the seesaw, wedge hangs from the pulley)
+added:   wedge_weight, pulley_string_wedge, pulley_string_trapdoor, wheel_axle, string_drum, winch_string, marble_3
+changed: top_ramp, wedge, paddle_wheel, fork_wheel, seesaw, marble_2
+removed: wedge_disc, feed_ramp, seesaw_weight, post_feed_ramp
+46 of 56 original parts are untouched
 
 wrote renders/compare_*.png

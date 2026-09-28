@@ -1,17 +1,20 @@
 """
-Collision and motion check for the wheel & axle winch.
+Collision and motion check for the redesigned wedge and wheel & axle.
 
     python motion_check.py
 
-1. static: no two parts overlap in the updated design, apart from overlaps
-   that were already in the original design
-2. marble 2 lands in the left paddle's cup; the wheel (carrying marble 2)
-   turns until it touches something -- it should be the existing stop pin
-3. how far the string lifts and the peg drops for a few wheel angles
-4. the release lever swings its peg down through the slot without hitting
-   anything
-5. marble 3 rolls down the feed ramp to the seesaw with the wheel turned and
-   marble 2 hanging in its cup, without touching anything but the ramp
+1. static: no two parts overlap, apart from overlaps already in the
+   original design
+2. trap door -> pulley -> wedge: the trap door tips until its stop; the
+   wedge is pulled up by the same amount, clears marble 2 without hitting the
+   pulley, and marble 2 rolls clear down the top ramp to the spiral
+3. marble 2 -> wheel & axle: marble 2 sits in the left paddle's cup and the
+   wheel turns until it touches something (should be the existing stop pin)
+4. wheel & axle -> seesaw: how far the winding string tips the seesaw for a
+   few wheel angles; the seesaw (with marble 3) tips to its right-hand stop
+   without hitting anything else
+5. seesaw -> marble 3: once tipped, marble 3 rolls along the seesaw and off
+   its right end without hitting anything
 """
 
 import itertools
@@ -36,94 +39,141 @@ def overlaps(parts):
     return out
 
 
+def rot_y(shape, x, z, deg):
+    """Rotate about a line parallel to +Y through (x, z).  Positive angles
+    lower the +X side."""
+    return shape.rotate((x, 0, z), (x, 1, z), deg)
+
+
 def main():
-    parts = m.build(winch_release=True)
-    before = overlaps(m.build(winch_release=False))
+    parts = m.build()
+    before = overlaps(m.build(winch_release=False, vertical_wedge=False))
     new = {k: v for k, v in overlaps(parts).items() if k not in before}
     print("1. overlaps already in the original design:", before)
     print("   new overlaps:", new or "none")
 
     static = {n: w.val() for n, (w, _) in parts.items()}
+    strings = {"pulley_string_wedge", "pulley_string_trapdoor", "winch_string"}
 
     def hits(shape, skip):
         found = []
         for n, s in static.items():
-            if n not in skip:
+            if n not in skip and n not in strings:
                 v = shape.intersect(s).Volume()
                 if v > 0.01:
                     found.append((n, round(v, 2)))
         return found
 
-    # Marble 2 resting in the cup of the left paddle (lip at the tip)
     r = m.MARBLE_D / 2
-    d = m.WHEEL_R - m.WHEEL_PADDLE_T - r
-    m2 = cq.Workplane("XY").sphere(r).translate(
-        (m.WHEEL_CX - d, 262.0, m.WHEEL_CZ + m.WHEEL_PADDLE_T / 2 + r))
-    loaded = parts["paddle_wheel"][0].union(m2)
-    print("\n2. marble 2 in the cup at rest touches:",
-          hits(m2.val(), {"paddle_wheel", "marble_2"}) or "nothing")
-    stop_deg = None
-    for deg in range(0, 95, 2):
-        w = loaded.rotate((m.WHEEL_CX, 0, m.WHEEL_CZ), (m.WHEEL_CX, 1, m.WHEEL_CZ), -deg).val()
-        h = hits(w, {"paddle_wheel", "wheel_axle", "marble_2"})
+
+    # ---- 2. trap door -> pulley -> wedge -> marble 2 ----
+    trap = parts["trapdoor"][0]
+    hx, hz = m.TRAP_X0, m.TRAP_HINGE_Z
+    trap_deg = None
+    for deg in range(0, 60):
+        h = hits(rot_y(trap, hx, hz, deg).val(), {"trapdoor", "fork_trapdoor", "marble_1"})
         if h:
-            print(f"   wheel + marble 2 turn freely until {deg} deg, then touch {h}")
-            stop_deg = deg
+            trap_deg = deg
             break
-    else:
-        print("   wheel turns 90 deg with no contact")
-        stop_deg = 90
-
-    # String lift -> lever -> peg drop
-    drum_y = m.DRUM_Y0 + m.DRUM_FLANGE_T + m.DRUM_L / 2
-    front = m.RELEASE_PIVOT_Y - drum_y
-    back = m.RELEASE_PEG_Y - m.RELEASE_PIVOT_Y
-    print("\n3. string lift and peg drop (peg sticks up "
-          f"{m.RELEASE_PEG_UP} mm, so it must drop more than that)")
-    for wdeg in (20, 30, 45, stop_deg):
-        lift = m.DRUM_D / 2 * math.radians(wdeg)
-        tilt = math.degrees(math.asin(min(1.0, lift / front)))
-        drop = back * math.sin(math.radians(tilt))
-        print(f"   wheel {wdeg:3d} deg: string lifts {lift:4.1f} mm, lever tips {tilt:4.1f} deg, "
-              f"peg drops {drop:4.1f} mm")
-
-    # Release lever swinging (peg end down = negative rotation about +X)
-    lever = parts["release_lever"][0]
-    pb = static["release_nail"].BoundingBox()
-    pz = (pb.zmin + pb.zmax) / 2
-    final_tilt = math.degrees(math.asin(min(1.0, m.DRUM_D / 2 * math.radians(stop_deg) / front)))
-    for deg in range(0, int(final_tilt) + 3, 2):
-        lv = lever.rotate((0, m.RELEASE_PIVOT_Y, pz), (1, m.RELEASE_PIVOT_Y, pz), -deg).val()
-        h = hits(lv, {"release_lever", "release_nail", "counterweight_penny", "winch_string", "marble_3"})
-        if h:
-            print(f"\n4. lever touches {h} at {deg} deg")
-            break
-    else:
-        print(f"\n4. lever swings {int(final_tilt) + 2} deg with no contact")
-
-    # Marble 3 rolling down the feed ramp past the turned wheel
-    wheel_end = loaded.rotate((m.WHEEL_CX, 0, m.WHEEL_CZ), (m.WHEEL_CX, 1, m.WHEEL_CZ), -stop_deg).val()
-    lever_end = lever.rotate((0, m.RELEASE_PIVOT_Y, pz), (1, m.RELEASE_PIVOT_Y, pz), -final_tilt).val()
-    t = math.radians(m.FEED_TILT)
-    m3 = static["marble_3"].Center()
+    tx = (m.TRAP_STRING_TAB[0] + m.TRAP_STRING_TAB[2]) / 2 - hx
+    pull = tx * math.sin(math.radians(trap_deg))
+    print(f"\n2. trap door tips {trap_deg} deg before touching {h}: "
+          f"pulls the string {pull:.1f} mm, so the wedge lifts {pull:.1f} mm")
+    wedge = parts["wedge"][0].union(parts["wedge_weight"][0])
+    wb = static["wedge"].BoundingBox()
+    m2 = static["marble_2"].Center()
+    need = (m2.z + r) - wb.zmin
+    print(f"   wedge must lift {need:.1f} mm to clear marble 2 "
+          f"({'OK' if pull > need else 'NOT ENOUGH'})")
+    lifted = wedge.translate((0, 0, pull)).val()
+    print("   lifted wedge (with its washers) touches:", hits(lifted, {"wedge", "wedge_weight"}) or "nothing")
+    t3 = math.tan(math.radians(m.TOP_TILT))
     blocked = None
-    for step in range(0, 60):
-        x = m3.x + step
-        if x > 100:
+    for step in range(0, 200, 2):
+        x = m2.x - step
+        if x < m.TOP_ANCHOR[0] + r:
             break
-        z = m3.z - step * math.tan(t)
-        ball = cq.Workplane("XY").sphere(r - 0.05).translate((x, m3.y, z)).val()
-        h = [(n, v) for n, v in hits(ball, {"marble_3", "feed_ramp", "paddle_wheel", "release_lever"})]
-        for n, shp in (("turned wheel + marble 2", wheel_end), ("dropped lever", lever_end)):
-            if ball.intersect(shp).Volume() > 0.01:
-                h.append((n, "hit"))
+        ball = cq.Workplane("XY").sphere(r - 0.05).translate((x, m2.y, m2.z - step * t3)).val()
+        h = hits(ball, {"marble_2", "top_ramp", "wedge", "wedge_weight"})
+        if ball.intersect(lifted).Volume() > 0.01:
+            h.append(("lifted wedge", "hit"))
         if h:
             blocked = (round(x, 1), h)
             break
-    if blocked:
-        print(f"\n5. marble 3 blocked at x={blocked[0]}: {blocked[1]}")
-    else:
-        print(f"\n5. marble 3 rolls clear from x={m3.x:.1f} to x=100 (the seesaw starts at x=105)")
+    print("   marble 2 rolling to the spiral:",
+          f"blocked at x={blocked[0]}: {blocked[1]}" if blocked else "clear")
+
+    # ---- 3. marble 2 turns the wheel ----
+    d = m.WHEEL_R - m.WHEEL_PADDLE_T - r
+    cup = cq.Workplane("XY").sphere(r).translate((m.WHEEL_CX - d, 262.0, m.WHEEL_CZ + m.WHEEL_PADDLE_T / 2 + r))
+    loaded = parts["paddle_wheel"][0].union(cup)
+    print("\n3. marble 2 in the cup at rest touches:", hits(cup.val(), {"paddle_wheel"}) or "nothing")
+    stop_deg = 90
+    for deg in range(0, 95, 2):
+        # anticlockwise seen from the front = lowers the -X side = negative here
+        h = hits(rot_y(loaded, m.WHEEL_CX, m.WHEEL_CZ, -deg).val(), {"paddle_wheel", "wheel_axle"})
+        if h:
+            stop_deg = deg
+            print(f"   wheel + marble 2 turn freely until {deg} deg, then touch {h}")
+            break
+
+    # ---- 4. wheel & axle -> string -> seesaw ----
+    px, pz = m.SEESAW_PIVOT
+    tab_u = sum(m.SEESAW_TAB_U) / 2
+    n_top = m.SEESAW_FLOOR_ABOVE + m.CH_FLOOR
+    rho = m.DRUM_D / 2 + m.STRING_D / 2
+
+    def tab_point(extra_deg):
+        """Tab hole position after lifting the seesaw's left end by extra_deg."""
+        a = math.radians(m.SEESAW_TILT - extra_deg)
+        return (px + tab_u * math.cos(a) - n_top * math.sin(a), pz + tab_u * math.sin(a) + n_top * math.cos(a))
+
+    def free_length(extra_deg):
+        gx, gz = tab_point(extra_deg)
+        return math.sqrt((gx - m.WHEEL_CX) ** 2 + (gz - m.WHEEL_CZ) ** 2 - rho ** 2)
+
+    seesaw = parts["seesaw"][0].union(parts["marble_3"][0])
+    tip_deg = None
+    for deg10 in range(0, 300, 5):
+        deg = deg10 / 10
+        # lifting the left end = lowering the +X side = positive here
+        h = hits(rot_y(seesaw, px, pz, deg).val(), {"seesaw", "marble_3", "fork_seesaw"})
+        if h:
+            tip_deg = deg
+            break
+    print(f"\n4. seesaw starts tilted {m.SEESAW_TILT} deg (left end down). It can tip {tip_deg} deg "
+          f"before touching {h};\n   marble 3 starts rolling once it is past level.")
+    for wdeg in range(10, stop_deg + 1, 5):
+        wound = rho * math.radians(wdeg)
+        extra = 0.0
+        while extra < tip_deg and free_length(0) - free_length(extra) < wound:
+            extra += 0.05
+        now = m.SEESAW_TILT - extra
+        print(f"   wheel {wdeg:3d} deg: string winds {wound:4.1f} mm -> seesaw tips {extra:4.1f} deg "
+              f"(now {now:+.1f} deg, {'marble 3 rolls' if now < -0.5 else 'marble 3 waits'})")
+        if extra >= tip_deg:
+            print("   the seesaw is on its stop, so the string holds the wheel here (marble 2 stays in its cup)")
+            break
+
+    # ---- 5. marble 3 rolls off the tipped seesaw ----
+    a = math.radians(m.SEESAW_TILT - tip_deg)
+    tipped = rot_y(parts["seesaw"][0], px, pz, tip_deg).val()
+    m3 = static["marble_3"].Center()
+    u0 = -m.SEESAW_LEN / 2 + m.END_WALL_T + r
+    blocked = None
+    for step in range(0, int(m.SEESAW_LEN - m.END_WALL_T - r) + 1, 2):
+        u, n = u0 + step, n_top + r
+        x = px + u * math.cos(a) - n * math.sin(a)
+        z = pz + u * math.sin(a) + n * math.cos(a)
+        ball = cq.Workplane("XY").sphere(r - 0.05).translate((x, m3.y, z)).val()
+        h = hits(ball, {"seesaw", "marble_3"})
+        if ball.intersect(tipped).Volume() > 0.01:
+            h.append(("tipped seesaw", "hit"))
+        if h:
+            blocked = (round(x, 1), h)
+            break
+    print("\n5. marble 3 rolling off the tipped seesaw:",
+          f"blocked at x={blocked[0]}: {blocked[1]}" if blocked else "clear to the right end (drops onto the lever)")
 
 
 if __name__ == "__main__":
