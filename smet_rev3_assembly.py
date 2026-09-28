@@ -2,6 +2,9 @@
 SMET rev3 simple-machines marble tower -- parametric CadQuery rebuild.
 
 Rebuilt from SMET_rev3_assembly.stl (the original mesh had no CAD source).
+With WINCH_RELEASE = True (the default) the paddle wheel is redesigned as a
+wheel & axle winch that tips a tray and releases marble 2; set it to False
+to get the original design back.
 Every dimension is in millimetres.  Edit the variables in the PARAMETERS
 section below and re-run:
 
@@ -106,6 +109,35 @@ WHEEL_R = 32.0                 # paddle tip radius
 WHEEL_PADDLE_T = 2.4
 WHEEL_PADDLE_Y = (252.0, 272.0)
 WHEEL_PADDLES = 4
+
+# ---- Wheel & axle winch (redesign) --------------------------------------------
+# True  = the paddle wheel is fixed to a rotating axle that carries a string
+#         drum; the string tips the release tray and starts marble 2.
+# False = the original passive paddle wheel (loose on a fixed pin).
+WINCH_RELEASE = True
+WHEEL_LIP_H = 5.0               # lip on each paddle tip so the marble rides the wheel
+AXLE_Y = (167.0, 286.0)         # rotating axle (PIN_D rod) front and back ends
+DRUM_Y0 = 167.0                 # front face of the string drum
+DRUM_D = 16.0                   # winding diameter (the "axle" of the wheel & axle)
+DRUM_FLANGE_D = 28.0
+DRUM_FLANGE_T = 2.0
+DRUM_L = 12.0                   # winding length between the flanges
+BEARING_POST_X0 = 38.0          # front bearing post beside the exit ramp
+BEARING_POST_Y = (189.2, 197.2)
+STRING_D = 1.0
+
+# Release tray for marble 2, pivoting above the exit ramp
+TRAY_PIVOT = (74.0, 216.0)      # (x, z) of the tray pin
+TRAY_REST_TILT = 5.0            # tray leans back this much while it holds marble 2
+TRAY_FRONT = 10.0               # tray length in front of the pivot
+TRAY_BACK = 19.0                # pivot -> inside of the back wall
+TRAY_TAIL = 7.0                 # string tail behind the back wall
+TRAY_BLOCK_W = 8.0
+TRAY_BLOCK_BELOW = 3.5
+TRAY_FLOOR_ABOVE = 2.0          # floor underside above the pivot pin
+TRAY_REST_U = -10.0             # rest pin position along the tray (from pivot)
+TRAY_FORK_X = (62.0, 78.0)      # tray fork uprights (carry pivot pin + rest pin)
+TRAY_FORK_PRONGS = [(155.0, 160.8), (189.2, 195.0)]
 
 # ---- Feed ramp (5 deg) between wheel and seesaw ------------------------------
 FEED_TILT = 5.0
@@ -329,7 +361,11 @@ def angle_after(start, a):
 # BUILD
 # =============================================================================
 
-def build():
+def build(winch_release=None):
+    """Build every part.  winch_release overrides WINCH_RELEASE (False
+    rebuilds the original design exactly, as used by compare.py)."""
+    if winch_release is None:
+        winch_release = WINCH_RELEASE
     parts = {}   # name -> (Workplane, colour)
     WOOD = (0.80, 0.62, 0.40)
     RAMP = (0.25, 0.55, 0.85)
@@ -423,10 +459,80 @@ def build():
     wheel = cyl(WHEEL_HUB_D, (WHEEL_CX, WHEEL_Y[0], WHEEL_CZ), (0, 1, 0), hub_len)
     for i in range(WHEEL_PADDLES):
         paddle = box(0, WHEEL_PADDLE_Y[0], -WHEEL_PADDLE_T / 2, WHEEL_R, WHEEL_PADDLE_Y[1], WHEEL_PADDLE_T / 2)
+        if winch_release:
+            # Lip on the tip, on the face that is on top when the paddle is
+            # loaded (pointing left), so the marble rides the wheel down.
+            paddle = paddle.union(box(WHEEL_R - WHEEL_PADDLE_T, WHEEL_PADDLE_Y[0],
+                                      -WHEEL_PADDLE_T / 2 - WHEEL_LIP_H, WHEEL_R,
+                                      WHEEL_PADDLE_Y[1], -WHEEL_PADDLE_T / 2))
         paddle = paddle.rotate((0, 0, 0), (0, 1, 0), i * 360.0 / WHEEL_PADDLES)
         wheel = wheel.union(paddle.translate((WHEEL_CX, 0, WHEEL_CZ)))
-    wheel = wheel.cut(cyl(PIVOT_HOLE_D, (WHEEL_CX, WHEEL_Y[0] - 1, WHEEL_CZ), (0, 1, 0), hub_len + 2))
+    # Winch: the wheel is fixed to the axle (bore = axle).  Original: it
+    # spins loose on a fixed pin.
+    bore = PIN_D if winch_release else PIVOT_HOLE_D
+    wheel = wheel.cut(cyl(bore, (WHEEL_CX, WHEEL_Y[0] - 1, WHEEL_CZ), (0, 1, 0), hub_len + 2))
     parts["paddle_wheel"] = (wheel, MECH)
+
+    if winch_release:
+        axle_hole = lambda y0, y1: cyl(PIVOT_HOLE_D, (WHEEL_CX, y0 - 1, WHEEL_CZ), (0, 1, 0), y1 - y0 + 2)
+        # Rotating axle: wheel and drum are both fixed to it
+        parts["wheel_axle"] = (cyl(PIN_D, (WHEEL_CX, AXLE_Y[0], WHEEL_CZ), (0, 1, 0),
+                                   AXLE_Y[1] - AXLE_Y[0]), METAL)
+        # String drum -- the small-radius "axle" that winds the string
+        fl = DRUM_FLANGE_T
+        drum = (cyl(DRUM_FLANGE_D, (WHEEL_CX, DRUM_Y0, WHEEL_CZ), (0, 1, 0), fl)
+                .union(cyl(DRUM_D, (WHEEL_CX, DRUM_Y0 + fl, WHEEL_CZ), (0, 1, 0), DRUM_L))
+                .union(cyl(DRUM_FLANGE_D, (WHEEL_CX, DRUM_Y0 + fl + DRUM_L, WHEEL_CZ), (0, 1, 0), fl))
+                .cut(cyl(PIN_D, (WHEEL_CX, DRUM_Y0 - 1, WHEEL_CZ), (0, 1, 0), DRUM_L + 2 * fl + 2)))
+        parts["string_drum"] = (drum, MECH)
+        # Front bearing post supports the axle next to the drum
+        by0, by1 = BEARING_POST_Y
+        post = box(BEARING_POST_X0, by0, z_deck, BEARING_POST_X0 + FORK_T, by1, WHEEL_CZ + FORK_PIN_DROP)
+        parts["axle_bearing_post"] = (post.cut(axle_hole(by0, by1)), SUPPORT)
+
+        # Release tray: built with the pivot pin at the origin, then tilted
+        # back to its resting angle.
+        xp, zp = TRAY_PIVOT
+        a = math.radians(TRAY_REST_TILT)
+
+        def tray_to_global(u, n):
+            return (xp + u * math.cos(a) - n * math.sin(a), zp + u * math.sin(a) + n * math.cos(a))
+
+        back = TRAY_BACK + END_WALL_T
+        tray = channel(back + TRAY_FRONT, end_wall_start=END_WALL_H).translate((-back, 0, TRAY_FLOOR_ABOVE))
+        tray = tray.union(box(-back - TRAY_TAIL, 0, TRAY_FLOOR_ABOVE, -back, CH_W, TRAY_FLOOR_ABOVE + CH_FLOOR))
+        tray = tray.union(box(-TRAY_BLOCK_W / 2, 0, -TRAY_BLOCK_BELOW, TRAY_BLOCK_W / 2, CH_W, TRAY_FLOOR_ABOVE))
+        tray = tray.cut(cyl(PIVOT_HOLE_D, (0, -1, 0), (0, 1, 0), CH_W + 2))
+        # String hole in the tail, directly under the drum's lifting side
+        string_x = WHEEL_CX + DRUM_D / 2 + STRING_D / 2
+        n_mid = TRAY_FLOOR_ABOVE + CH_FLOOR / 2
+        u_hole = (string_x - xp + n_mid * math.sin(a)) / math.cos(a)
+        tray = tray.cut(cyl(TRAP_STRING_HOLE_D, (u_hole, CH_W / 2, TRAY_FLOOR_ABOVE - 1), (0, 0, 1), CH_FLOOR + 2))
+        parts["release_tray"] = (place(tray, (xp, TRAP_Y0, zp), TRAY_REST_TILT), MECH)
+
+        # Tray fork: two uprights carrying the pivot pin and the rest pin
+        fork_top = zp + FORK_PIN_DROP
+        tf = None
+        for y0, y1 in TRAY_FORK_PRONGS:
+            b = box(TRAY_FORK_X[0], y0, z_deck, TRAY_FORK_X[1], y1, fork_top)
+            tf = b if tf is None else tf.union(b)
+        py0, py1 = TRAY_FORK_PRONGS[0][0], TRAY_FORK_PRONGS[-1][1]
+        rest_x, rest_z = tray_to_global(TRAY_REST_U, TRAY_FLOOR_ABOVE - PIN_D / 2)
+        for px, pz in ((xp, zp), (rest_x, rest_z)):
+            tf = tf.union(cyl(PIN_D, (px, py0, pz), (0, 1, 0), py1 - py0))
+        parts["fork_release_tray"] = (tf, SUPPORT)
+
+        # String from the tray tail up to the drum
+        sx, sz = tray_to_global(u_hole, TRAY_FLOOR_ABOVE + CH_FLOOR)
+        drum_y = DRUM_Y0 + fl + DRUM_L / 2
+        parts["winch_string"] = (cyl(STRING_D, (string_x, drum_y, sz), (0, 0, 1), WHEEL_CZ - sz),
+                                 (0.20, 0.20, 0.20))
+
+        # Marble 2 now waits in the tray, against its back wall
+        mx, mz = tray_to_global(-TRAY_BACK + MARBLE_D / 2, TRAY_FLOOR_ABOVE + CH_FLOOR + MARBLE_D / 2)
+        marbles = [MARBLES[0], (mx, TRAP_Y0 + CH_W / 2, mz)]
+    else:
+        marbles = MARBLES
 
     # ---- Pivot forks (uprights + pin) ----
     for name, (fx0, prongs, ztop, pin_z, pin_y) in FORKS.items():
@@ -437,6 +543,12 @@ def build():
         for y0, y1 in prongs:
             b = box(fx0, y0, z_deck, fx0 + t, y1, ztop)
             f = b if f is None else f.union(b)
+        if winch_release and name == "fork_wheel":
+            # The axle turns with the wheel, so the fork gets bearing holes
+            # instead of a fixed pin.
+            f = f.cut(cyl(PIVOT_HOLE_D, (fx0 + t / 2, pin_y[0] - 1, pin_z), (0, 1, 0), pin_y[1] - pin_y[0] + 2))
+            parts[name] = (f, SUPPORT)
+            continue
         f = f.union(cyl(PIN_D, (fx0 + t / 2, pin_y[0], pin_z), (0, 1, 0), pin_y[1] - pin_y[0]))
         parts[name] = (f, SUPPORT)
 
@@ -517,7 +629,7 @@ def build():
     parts["trap_latch_post"] = (box(x0, py0, z_deck, x1, y1, zt).union(box(x0, qy0, zt, x1, y1, zt + t)), SUPPORT)
 
     # ---- Marbles ----
-    for i, c in enumerate(MARBLES):
+    for i, c in enumerate(marbles):
         parts[f"marble_{i + 1}"] = (cq.Workplane("XY").sphere(MARBLE_D / 2).translate(c), MARBLE)
 
     return parts
