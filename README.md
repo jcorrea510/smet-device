@@ -11,7 +11,7 @@ python compare.py              # checks the rebuild against the original, writes
 python motion_check.py         # collision + motion check for the wheel & axle winch
 ```
 
-* `output/smet_rev3_assembly.step`: 62 named, coloured parts (63 solids, because `fork_wheel` is two
+* `output/smet_rev3_assembly.step`: 63 named, coloured parts (64 solids, because `fork_wheel` is two
   uprights). Import it into Onshape.
 * `output/smet_rev3_assembly.stl`: one mesh for slicing and printing.
 * `renders/`: side-by-side previews (original STL = blue, updated design = orange), the labelled
@@ -19,48 +19,80 @@ python motion_check.py         # collision + motion check for the wheel & axle w
 
 ## What's in the model
 
-The tower is 312.0 × 304.8 × 757.0 mm overall (X × Y × Z). The base is 304.8 mm (12 in) square, and one
-marble overhangs the left edge by 7.2 mm. The machines, top to bottom:
+The tower is 312.0 × 304.8 × 757.0 mm overall (X × Y × Z). The base is 304.8 mm (12 in) square, and
+marble 1 (arriving from the previous group) overhangs the left edge by 7.2 mm. The machines, top to bottom:
 
 | Simple machine  | Parts |
 |-----------------|-------|
 | Pulley          | `pulley` spool on `pulley_axle`, held by `pulley_arm` |
 | Wedge           | `wedge` (plus `wedge_disc`) on the `top_ramp` |
 | Screw           | `spiral_upper` / `spiral_lower`: a 2-turn helical channel on three ¼ in dowels |
-| Inclined planes | 6 `zigzag_ramp_*`, plus `transfer_chute`, `feed_ramp`, `exit_ramp` |
-| Wheel & axle    | `paddle_wheel` + `string_drum` on a shared `wheel_axle`: a winch that releases marble 2 (see below) |
+| Inclined planes | `entry_ramp`, `top_ramp`, `transfer_chute`, 6 `zigzag_ramp_*`, `feed_ramp` |
+| Wheel & axle    | `paddle_wheel` + `string_drum` on a shared `wheel_axle`: a winch that releases marble 3 (see below) |
 | Levers          | `seesaw`, the counter-weighted `lever`, the tipping `cradle` + `rocker`, and the hinged `trapdoor` |
 
 Every straight ramp shares one U-channel profile: 25.4 mm wide, 2 mm walls, 3.2 mm floor, walls 10 mm tall.
 
-## Wheel & axle redesign: the winch
+## How the machine runs
 
-In the original design the paddle wheel spun loose on a fixed pin. Marble 1 tipped it and fell off, so no
-energy went anywhere else. Now the wheel is a winch whose work starts the second half of the machine:
+1. **Marble 1** comes from the previous group. It rolls down the `entry_ramp` (inclined plane) from the
+   left edge of the base onto the `trapdoor` (lever).
+2. The trap door tips and pulls a string over the `pulley` at the top. That lifts the `wedge`, which was
+   holding **marble 2** at the top of the `top_ramp`.
+3. Marble 2 rolls down the `spiral` (screw), the `transfer_chute` and the six `zigzag_ramp`s (inclined
+   planes).
+4. Marble 2 drops into a cup on the **wheel & axle** and stays there. Its weight turns the wheel, and
+   that releases **marble 3**. See the next section.
+5. Marble 3 rolls down the `feed_ramp` onto the `seesaw` (lever), then onto the counter-weighted `lever`.
+   That tips it into the `cradle` at the right edge, which hands it to the next group.
 
-1. Marble 1 drops through the lowest zig-zag ramp into a paddle. The paddles now have a 5 mm lip, so the
-   marble rides the wheel down (about 70°) before spilling onto the feed ramp as before.
-2. The wheel is fixed to a 3 mm axle that turns in the fork and a new front bearing post. A 16 mm string
-   drum on the front of the axle turns with the wheel and winds up the string.
-3. The string lifts the tail of the `release_tray`, which pivots above the exit ramp. The tray tips forward.
-4. Marble 2, which used to sit loose at the top of the exit ramp, rolls out onto the exit ramp and runs on
-   to the trap door.
+Each marble does its own part of the run. Marble 1 starts the machine, marble 2 does the top half, and
+marble 3 does the bottom half. Each one is started by the machine before it.
 
-Why it counts as a wheel & axle: marble 1 pushes on the wheel 20–32 mm from the axle, and the string pulls
-8.5 mm from it (the drum radius plus half the string). That multiplies the force by roughly 2.4–3.8 times.
-Tipping the loaded tray takes about 5.3 g of pull on the string, which is more than marble 1 weighs
-(about 5.2 g). Marble 1 couldn't tip the tray by pulling a string directly, but it can through the wheel &
-axle. That's the energy transfer: marble 1's potential energy → the wheel turning → the string lifting
-the tray → marble 2 moving. (Estimates assume PLA parts and a glass ⅝ in marble.)
+## Wheel & axle redesign
 
-What changed: `paddle_wheel` (lips, bore now fixed to the axle), `fork_wheel` (bearing holes instead of a
-fixed pin, so its two uprights are now separate solids), and `marble_2` (now waits in the tray). Added: `wheel_axle`, `string_drum`,
-`axle_bearing_post`, `release_tray`, `fork_release_tray` (carries the tray pivot pin and a rest pin),
-and `winch_string`. The other 53 parts are unchanged. The model has no collisions: the wheel turns
-freely until the existing stop pin catches it at about 80°, and the tray tips 40° forward without
-hitting anything.
+In the original design the paddle wheel spun loose on a pin. Marble 2 knocked it round and fell off onto
+the feed ramp, so the wheel didn't pass any energy on. Now the wheel is a winch (`renders/winch_detail.png`):
 
-Set `WINCH_RELEASE = False` to get the original passive paddle wheel back.
+1. Marble 2 drops through the lowest zig-zag ramp into the left paddle. Each paddle now has a 7 mm lip at
+   its tip, which makes a cup, so marble 2 stays on the wheel. Its weight turns the wheel about 80°, until
+   the existing stop pin catches it. The marble can't spill out before about 83°, so it stays in the cup
+   and the wheel stays turned.
+2. The wheel is glued to its axle, so the axle turns too. A small drum on the front of the axle
+   (14 mm across) winds up the string.
+3. The string lifts the front end of the `release_lever`. This is a 4 mm wooden stick under the feed ramp
+   that pivots on a nail in the wheel fork's front upright. Its back end carries a peg that pokes 4 mm up
+   through a slot in the feed ramp. When the front end goes up, the peg drops down out of the way
+   (16 mm at 80° of wheel turn, and already more than 4 mm at 20°).
+4. **Marble 3** was resting against the peg at the top of the feed ramp. It now rolls to the seesaw and
+   runs the rest of the machine. A penny taped under the lever's front end keeps the peg up until then.
+
+Why it's a wheel & axle: marble 2 pushes on the wheel about 22 mm from the centre, and the string pulls
+7.5 mm from it, so the wheel multiplies marble 2's force about 3 times. It takes about 3.2 g of pull to
+lift the penny end of the lever. Marble 2 (about 5.2 g) can easily supply that, about 5 times over. The
+penny holds the peg up about 7 times harder than marble 3 pushes it down. (Estimates assume pine sticks,
+a ⅝ in glass marble and a US penny.)
+
+**What to build.** Nearly everything new is wood or hardware:
+
+| Part | Material |
+|------|----------|
+| `release_lever` (stick + peg) | 4 mm square wood strip (craft stick or basswood) |
+| `release_nail` | small nail or brad, 2 mm, into the existing fork upright |
+| `wheel_axle` | 3 mm bamboo skewer or steel rod, glued into the wheel and drum |
+| `counterweight_penny` | one penny, taped on |
+| `winch_string` | thread, tied to the lever and wound once on the drum |
+| `string_drum` | small 3D print (or a slice of ⅝ in dowel with flanges glued on) |
+| `paddle_wheel` | reprint the existing wheel with the taller lips |
+| `feed_ramp` | the same ramp, plus a 6 × 10 mm slot for the peg |
+
+The rest of the model is unchanged, and nothing collides. `python motion_check.py` checks:
+- marble 2 lands in the cup;
+- the wheel turns to the stop pin;
+- the lever swings freely;
+- marble 3 rolls clear under the turned wheel all the way to the seesaw.
+
+Set `WINCH_RELEASE = False` to get the original paddle wheel back.
 
 ## Adjustable dimensions (top of `smet_rev3_assembly.py`)
 
@@ -83,13 +115,14 @@ Set `WINCH_RELEASE = False` to get the original passive paddle wheel back.
 | Seesaw | `SEESAW_LEN`, `SEESAW_TILT`, `SEESAW_WEIGHT_D`, `SEESAW_WEIGHT_T` | 90, 1.0, 19, 1.52 |
 | Lever | `LEVER_LEN`, `LEVER_BOX_H`, `LEVER_BOX_WALL`, `LEVER_WEIGHT_D`, `LEVER_WEIGHT_H` | 137, 13, 1, 19, 10.64 |
 | Trap door | `TRAP_LEN`, `TRAP_KNUCKLE_R`, `TRAP_GATE_T`, `TRAP_STRING_HOLE_D` | 114, 3.5, 3.0, 1.8 |
-| Other ramps | `FEED_TILT`/`FEED_LEN`, `EXIT_TILT`/`EXIT_LEN`, `TOP_TILT`/`TOP_LEN`, `TRANSFER_TILT`/`TRANSFER_LEN` | 5/95.965, −3/175.941, 3/159.218, 5/151.413 |
+| Other ramps | `FEED_TILT`/`FEED_LEN`, `ENTRY_TILT`/`ENTRY_LEN`, `TOP_TILT`/`TOP_LEN`, `TRANSFER_TILT`/`TRANSFER_LEN` | 5/95.965, −3/175.941, 3/159.218, 5/151.413 |
 | Wedge | `WEDGE_H_LOW`, `WEDGE_H_HIGH` | 6, 18 |
 | Pulley | `PULLEY_FLANGE_D`, `PULLEY_HUB_D`, `PULLEY_HUB_L`, `PULLEY_FLANGE_T` | 28, 20, 10, 1.5 |
-| Winch | `WINCH_RELEASE`, `WHEEL_LIP_H`, `DRUM_D`, `DRUM_FLANGE_D`, `DRUM_L` | True, 5, 16, 28, 12 |
-| | `AXLE_Y`, `BEARING_POST_Y`, `STRING_D` | (167, 286), (189.2, 197.2), 1.0 |
-| Release tray | `TRAY_PIVOT` (x, z), `TRAY_REST_TILT` (deg), `TRAY_FRONT`, `TRAY_BACK`, `TRAY_TAIL` | (74, 216), 5, 10, 19, 7 |
-| | `TRAY_REST_U`, `TRAY_FORK_X` | −10, (62, 78) |
+| Winch | `WINCH_RELEASE`, `WHEEL_LIP_H`, `DRUM_D`, `DRUM_FLANGE_D`, `DRUM_L` | True, 7, 14, 24, 8 |
+| | `AXLE_Y`, `DRUM_Y0`, `STRING_D` | (224, 286), 224, 1.0 |
+| Release lever | `LEVER_STICK`, `RELEASE_PIVOT_Y`, `RELEASE_PEG_Y`, `RELEASE_FRONT_Y` | 4, 242, 262, 222 |
+| | `RELEASE_PEG_UP`, `RELEASE_NAIL_D`, `RELEASE_SLOT` (x, y) | 4, 2, (6, 10) |
+| | `COIN_D`, `COIN_T`, `COIN_Y` (penny counterweight) | 19.05, 1.52, 226 |
 | Marbles | `MARBLE_D` | 15.875 (⅝ in) |
 
 Positions are also variables: the `*_ANCHOR` points, the pivot coordinates and the `POSTS`, `STOP_POSTS`

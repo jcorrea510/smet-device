@@ -17,6 +17,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+import cadquery as cq
 import trimesh
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.optimize import linear_sum_assignment
@@ -117,31 +118,37 @@ def render_compare(orig, rebuilt, path, title, views=VIEWS, crop=None):
 
 
 WINCH_PARTS = ["paddle_wheel", "wheel_axle", "string_drum", "fork_wheel", "wheel_stop_pin",
-               "axle_bearing_post", "winch_string", "release_tray", "fork_release_tray",
-               "marble_2", "exit_ramp", "feed_ramp"]
-WINCH_STEPS = ("1. Marble 1 drops into a paddle and turns the wheel.   "
-               "2. The string drum on the same axle winds up the string.\n"
-               "3. The string lifts the tray's tail, so the tray tips forward.   "
-               "4. Marble 2 rolls out onto the exit ramp.")
+               "release_lever", "release_nail", "counterweight_penny", "winch_string",
+               "feed_ramp", "post_feed_ramp", "marble_3"]
+WINCH_STEPS = ("1. Marble 2 drops into a cup on the wheel and stays there; its weight turns the wheel.   "
+               "2. The drum on the same axle winds up the string.\n"
+               "3. The string lifts the front of the release lever, so the peg drops out of the feed ramp.   "
+               "4. Marble 3 rolls on to the seesaw, lever and cradle.")
 
 
 def render_winch(parts, path):
     """Labelled view of just the wheel & axle winch and what it drives."""
-    fig = plt.figure(figsize=(15, 8))
+    fig = plt.figure(figsize=(18, 7.5))
     meshes = {n: part_mesh(parts[n][0]) for n in WINCH_PARTS if n in parts}
+    # show marble 2 where it ends up: in the cup of the left paddle
+    r = model.MARBLE_D / 2
+    cup = (model.WHEEL_CX - (model.WHEEL_R - model.WHEEL_PADDLE_T - r), 262.0,
+           model.WHEEL_CZ + model.WHEEL_PADDLE_T / 2 + r)
+    meshes["marble_2 (in cup)"] = part_mesh(cq.Workplane("XY").sphere(r).translate(cup))
     allm = trimesh.util.concatenate(list(meshes.values()))
     lo, hi = allm.bounds
     lo, hi = lo.copy(), hi.copy()
     lo[2] = 150.0                     # show the uprights only near the top
     center, radius = (lo + hi) / 2, (hi - lo).max() / 2 * 0.72
-    for i, (el, az, name) in enumerate(((20, -55, "iso front-left"), (0, -90, "front"))):
-        ax = fig.add_subplot(1, 2, i + 1, projection="3d")
+    views = ((20, -55, "iso front-left"), (0, -90, "front"), (0, 0, "side, from the right"))
+    for i, (el, az, name) in enumerate(views):
+        ax = fig.add_subplot(1, len(views), i + 1, projection="3d")
         for n, m in meshes.items():
             m = trimesh.intersections.slice_mesh_plane(m, (0, 0, 1), (0, 0, lo[2]))
-            color = parts[n][1] or (0.6, 0.6, 0.6)
+            color = parts[n][1] if n in parts else (0.15, 0.75, 0.35)
             _draw(ax, m, color, center, radius, el, az)
         ax.set_title(name, fontsize=10)
-    fig.suptitle("Wheel & axle winch: marble 1's energy releases marble 2", fontsize=13)
+    fig.suptitle("Wheel & axle winch: marble 2's weight releases marble 3", fontsize=13)
     fig.text(0.5, 0.02, WINCH_STEPS, ha="center", fontsize=10)
     plt.subplots_adjust(left=0, right=1, bottom=0.08, top=0.93, wspace=0)
     plt.savefig(path, dpi=90)
@@ -217,9 +224,9 @@ def main():
         render_compare(orig, rebuilt, "renders/compare_overview.png",
                        "Whole assembly: original (top) vs updated design (bottom)")
         render_compare(orig, rebuilt, "renders/compare_wheel_axle.png",
-                       "Wheel & axle: original (top) vs winch that releases marble 2 (bottom)",
+                       "Wheel & axle: original (top) vs winch that releases marble 3 (bottom)",
                        views=[(20, -55, "iso front-left"), (0, -90, "front"), (0, 0, "right side")],
-                       crop=((-10, 150, 190), (100, 290, 350)))
+                       crop=((-10, 210, 230), (110, 290, 350)))
         render_winch(new, "renders/winch_detail.png")
         detail = [(30, -60, "iso"), (20, 150, "iso back"), (90, -90, "top")]
         render_compare(orig, rebuilt, "renders/compare_spiral_top.png",
