@@ -1,3 +1,4 @@
+1. ORIGINAL DESIGN (WINCH_RELEASE=False) vs the original STL
 Original bodies: 55   Rebuilt parts: 55
 
 part                   max bbox err     orig vol      new vol  vol err
@@ -59,10 +60,15 @@ zigzag_ramp_6                 0.002      33844.1      33843.8   -0.00%
 
 Worst per-part bounding-box deviation: 0.007 mm
 
-Overall            original                 rebuilt
+Overall            original STL             rebuild
 bbox min   [-7.222  0.     0.   ]   [-7.217  0.     0.   ]
 bbox max   [304.8   304.8   757.001] [304.8   304.8   757.001]
-extents    [312.022 304.8   757.001] [312.017 304.8   757.001]
 volume     3,404,209 mm^3          3,406,020 mm^3  (+0.053%)
+
+2. WHEEL & AXLE REDESIGN (WINCH_RELEASE=True)
+added:   wheel_axle, string_drum, axle_bearing_post, release_tray, fork_release_tray, winch_string
+changed: paddle_wheel, fork_wheel, marble_2
+removed: -
+53 of 56 original parts are untouched
 
 wrote renders/compare_*.png

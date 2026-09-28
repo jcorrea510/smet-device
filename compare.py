@@ -3,10 +3,11 @@ Compare the CadQuery rebuild against the original STL.
 
     python compare.py
 
-* matches every body of the original mesh to a rebuilt part and prints the
-  bounding-box and volume difference of each pair
-* compares the overall bounding box and volume
-* renders preview images of the original and the rebuild into ./renders/
+* rebuilds the ORIGINAL design (WINCH_RELEASE=False), matches every body of
+  the original mesh to a rebuilt part and prints the bounding-box and volume
+  difference of each pair, plus the overall bounding box and volume
+* lists the parts the wheel & axle redesign adds or changes
+* renders the original STL next to the updated design into ./renders/
 """
 
 import os
@@ -104,7 +105,7 @@ def render_compare(orig, rebuilt, path, title, views=VIEWS, crop=None):
     center, radius = b.mean(0), (b[1] - b[0]).max() / 2 * 1.02
     fig = plt.figure(figsize=(4.0 * len(views), 8.4))
     for row, (m, color, label) in enumerate(((meshes[0], (0.30, 0.55, 0.85), "original STL"),
-                                             (meshes[1], (0.90, 0.50, 0.20), "CadQuery rebuild"))):
+                                             (meshes[1], (0.90, 0.50, 0.20), "updated design"))):
         for i, (el, az, name) in enumerate(views):
             ax = fig.add_subplot(2, len(views), row * len(views) + i + 1, projection="3d")
             _draw(ax, m, color, center, radius, el, az)
@@ -115,14 +116,43 @@ def render_compare(orig, rebuilt, path, title, views=VIEWS, crop=None):
     plt.close(fig)
 
 
+WINCH_PARTS = ["paddle_wheel", "wheel_axle", "string_drum", "fork_wheel", "wheel_stop_pin",
+               "axle_bearing_post", "winch_string", "release_tray", "fork_release_tray",
+               "marble_2", "exit_ramp", "feed_ramp"]
+WINCH_STEPS = ("1. Marble 1 drops into a paddle and turns the wheel.   "
+               "2. The string drum on the same axle winds up the string.\n"
+               "3. The string lifts the tray's tail, so the tray tips forward.   "
+               "4. Marble 2 rolls out onto the exit ramp.")
+
+
+def render_winch(parts, path):
+    """Labelled view of just the wheel & axle winch and what it drives."""
+    fig = plt.figure(figsize=(15, 8))
+    meshes = {n: part_mesh(parts[n][0]) for n in WINCH_PARTS if n in parts}
+    allm = trimesh.util.concatenate(list(meshes.values()))
+    lo, hi = allm.bounds
+    lo, hi = lo.copy(), hi.copy()
+    lo[2] = 150.0                     # show the uprights only near the top
+    center, radius = (lo + hi) / 2, (hi - lo).max() / 2 * 0.72
+    for i, (el, az, name) in enumerate(((20, -55, "iso front-left"), (0, -90, "front"))):
+        ax = fig.add_subplot(1, 2, i + 1, projection="3d")
+        for n, m in meshes.items():
+            m = trimesh.intersections.slice_mesh_plane(m, (0, 0, 1), (0, 0, lo[2]))
+            color = parts[n][1] or (0.6, 0.6, 0.6)
+            _draw(ax, m, color, center, radius, el, az)
+        ax.set_title(name, fontsize=10)
+    fig.suptitle("Wheel & axle winch: marble 1's energy releases marble 2", fontsize=13)
+    fig.text(0.5, 0.02, WINCH_STEPS, ha="center", fontsize=10)
+    plt.subplots_adjust(left=0, right=1, bottom=0.08, top=0.93, wspace=0)
+    plt.savefig(path, dpi=90)
+    plt.close(fig)
+
+
 def main():
     orig = trimesh.load(ORIGINAL)
-    parts = model.build()
-    if not os.path.exists(REBUILT):
-        model.export(parts)
-    rebuilt = trimesh.load(REBUILT)
 
-    # ---- per-body comparison ----
+    # ---- 1. Fidelity: the original design (winch off) vs the original STL ----
+    parts = model.build(winch_release=False)
     obodies = original_bodies(orig)
     # The original's two spiral sections only form a closed volume together,
     # so compare them against the two rebuilt sections combined.
@@ -136,34 +166,61 @@ def main():
     pmeshes = [part_mesh(parts[n][0]) for n in names]
     cost = np.array([[np.abs(o.bounds - p.bounds).sum() for p in pmeshes] for o in obodies])
     rows, cols = linear_sum_assignment(cost)
+    print("1. ORIGINAL DESIGN (WINCH_RELEASE=False) vs the original STL")
     print(f"Original bodies: {len(obodies)}   Rebuilt parts: {len(names)}\n")
     print(f"{'part':22s} {'max bbox err':>12s} {'orig vol':>12s} {'new vol':>12s} {'vol err':>8s}")
-    worst_bb, rows_out = 0.0, []
+    worst_bb = 0.0
     for r, c in sorted(zip(rows, cols), key=lambda rc: names[rc[1]]):
         o, n = obodies[r], names[c]
         bb = np.abs(o.bounds - pmeshes[c].bounds).max()
         ov, nv = o.volume, parts[n][0].val().Volume()
         worst_bb = max(worst_bb, bb)
-        rows_out.append((n, bb, ov, nv))
         print(f"{n:22s} {bb:12.3f} {ov:12.1f} {nv:12.1f} {100 * (nv - ov) / ov:7.2f}%")
     unmatched = set(range(len(names))) - set(cols)
     if unmatched:
         print("Unmatched rebuilt parts:", [names[i] for i in unmatched])
     print(f"\nWorst per-part bounding-box deviation: {worst_bb:.3f} mm")
 
-    # ---- overall comparison ----
+    rebuilt_orig = trimesh.util.concatenate(pmeshes)
     ov = sum(b.volume for b in obodies)
     nv = sum(wp.val().Volume() for wp, _ in parts.values())
-    print("\nOverall            original                 rebuilt")
-    print(f"bbox min   {np.round(orig.bounds[0], 3)!s:24s} {np.round(rebuilt.bounds[0], 3)}")
-    print(f"bbox max   {np.round(orig.bounds[1], 3)!s:24s} {np.round(rebuilt.bounds[1], 3)}")
-    print(f"extents    {np.round(orig.extents, 3)!s:24s} {np.round(rebuilt.extents, 3)}")
+    print("\nOverall            original STL             rebuild")
+    print(f"bbox min   {np.round(orig.bounds[0], 3)!s:24s} {np.round(rebuilt_orig.bounds[0], 3)}")
+    print(f"bbox max   {np.round(orig.bounds[1], 3)!s:24s} {np.round(rebuilt_orig.bounds[1], 3)}")
     print(f"volume     {ov:,.0f} mm^3{'':9s} {nv:,.0f} mm^3  ({100 * (nv - ov) / ov:+.3f}%)")
 
+    # ---- 2. What the wheel & axle redesign changes ----
+    old = model.build(winch_release=False)
+    new = model.build(winch_release=True)
+    added = [n for n in new if n not in old]
+    removed = [n for n in old if n not in new]
+    changed = []
+    for n in new:
+        if n in old:
+            a, b = old[n][0].val(), new[n][0].val()
+            ba, bb = a.BoundingBox(), b.BoundingBox()
+            diff = max(abs(ba.xmin - bb.xmin), abs(ba.ymin - bb.ymin), abs(ba.zmin - bb.zmin),
+                       abs(ba.xmax - bb.xmax), abs(ba.ymax - bb.ymax), abs(ba.zmax - bb.zmax))
+            if diff > 1e-3 or abs(a.Volume() - b.Volume()) > 1e-3:
+                changed.append(n)
+    print("\n2. WHEEL & AXLE REDESIGN (WINCH_RELEASE=True)")
+    print("added:  ", ", ".join(added) or "-")
+    print("changed:", ", ".join(changed) or "-")
+    print("removed:", ", ".join(removed) or "-")
+    print(f"{len(old) - len(changed) - len(removed)} of {len(old)} original parts are untouched")
+
+    if not os.path.exists(REBUILT):
+        model.export(new)
+    rebuilt = trimesh.load(REBUILT)
     if "--no-render" not in sys.argv:
         os.makedirs("renders", exist_ok=True)
         render_compare(orig, rebuilt, "renders/compare_overview.png",
-                       "Whole assembly: original (top) vs rebuild (bottom)")
+                       "Whole assembly: original (top) vs updated design (bottom)")
+        render_compare(orig, rebuilt, "renders/compare_wheel_axle.png",
+                       "Wheel & axle: original (top) vs winch that releases marble 2 (bottom)",
+                       views=[(20, -55, "iso front-left"), (0, -90, "front"), (0, 0, "right side")],
+                       crop=((-10, 150, 190), (100, 290, 350)))
+        render_winch(new, "renders/winch_detail.png")
         detail = [(30, -60, "iso"), (20, 150, "iso back"), (90, -90, "top")]
         render_compare(orig, rebuilt, "renders/compare_spiral_top.png",
                        "Spiral, top ramp, wedge and pulley",
